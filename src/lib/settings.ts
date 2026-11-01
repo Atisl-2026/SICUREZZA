@@ -6,11 +6,14 @@ export interface Settings {
   remoteUrl: string;
   /** Controlla aggiornamenti del database all'avvio (se online). */
   autoCheck: boolean;
+  /** Interruttore "Verifica anche sul web" della schermata Chiedi. */
+  webCheck: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
   remoteUrl: '',
-  autoCheck: true
+  autoCheck: true,
+  webCheck: false
 };
 
 /** db.json pubblicato su GitHub Pages insieme all'app. */

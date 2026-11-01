@@ -70,3 +70,18 @@ Regole di conversione:
 
 **Backup**: *Esporta backup* salva un JSON con tutti i record (su iPhone si apre il foglio di condivisione → *Salva su File*);
 lo stesso file si reimporta con *Importa JSON/CSV*.
+
+## Ricerca locale (offline)
+
+La ricerca usa [MiniSearch](https://github.com/lucaong/minisearch) direttamente sul dispositivo, senza rete:
+
+- **italiano**: minuscole, accenti ignorati (*perché* = *perche*), stopword italiane rimosse,
+  singolare/plurale e maschile/femminile unificati (*veicolo* = *veicoli*, *banca* = *banche*);
+- **errori di battitura**: 1 errore tollerato dalle 5 lettere, 2 dalle 9 (*pasword* → *password*);
+- **parole incomplete**: l'ultima parola vale anche come prefisso (*stamp* → *stampante*);
+- **pesi**: titolo ×2, tag ×1,5, testo ×1, categoria ×0,5;
+- **risultati**: i 6–8 blocchi più pertinenti (max 3 dallo stesso record, per dare spazio a fonti diverse),
+  mostrati come schede con titolo, categoria, fonte ed estratto con i termini evidenziati.
+
+L'indice viene salvato sul dispositivo e ricostruito solo quando i dati cambiano.
+Le ultime 20 domande restano nella cronologia locale (cancellabile).
