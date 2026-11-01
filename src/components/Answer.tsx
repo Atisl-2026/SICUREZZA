@@ -50,10 +50,22 @@ export function DbSection({ results, ai, unavailable, recordCount, onRetry }: Db
         </p>
       )}
 
-      {ai.status === 'loading' && (
+      {ai.status === 'loading' && !ai.partial && (
         <div class="card ai-card ai-loading" role="status">
           <span class="spinner" aria-hidden="true" /> Gemini sta leggendo i {results.length} blocchi trovati…
         </div>
+      )}
+
+      {ai.status === 'loading' && ai.partial && (
+        <article class="card ai-card" aria-label="Risposta AI in arrivo" aria-busy="true">
+          <Markdown
+            text={ai.partial}
+            ids={ids}
+            label={(id) => String(citedIds(ai.partial!, ids).indexOf(id) + 1)}
+            titleOf={(id) => titles.get(id) ?? id}
+          />
+          <p class="muted small streaming"><span class="spinner" aria-hidden="true" /> Gemini sta scrivendo…</p>
+        </article>
       )}
 
       {ai.status === 'error' && (

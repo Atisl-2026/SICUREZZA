@@ -177,7 +177,6 @@ export async function loginAdmin(token: string, password: string, repoInput: str
     await replaceRecords(payload.records, file.versione);
     await setAiEnvelope(payload.ai);
     await receiveCategories(payload.categorie);
-  await receiveCategories(payload.categorie);
     await setAccess({ ruolo: 'admin', sociKey, github: { token: token.trim(), repo: fullName, branch } });
     return { primoAccesso: false };
   }

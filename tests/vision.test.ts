@@ -25,6 +25,7 @@ describe('richieste per le foto', () => {
     expect(textOf(r)).toContain('Nota dell\'ispettore: ponteggio facciata nord');
     expect(r.generationConfig).toMatchObject({ responseMimeType: 'application/json' });
     expect((r.generationConfig!.responseSchema as { required: string[] }).required).toContain('parole_chiave');
+    expect(r.generationConfig!.maxOutputTokens).toBeLessThanOrEqual(2048); // risposta breve = più veloce
   });
 
   it('passo 2: immagini + brani con id + regole (solo fonti dell\'archivio)', () => {
@@ -80,26 +81,60 @@ describe('analisi completa (Gemini simulato, archivio di esempio)', () => {
     await putRecords(sample.records.map((r): StoredRecord => ({ ...r, origine: 'remoto', salvato_il: 0 })));
 
     const bodies: GeminiRequest[] = [];
+    const urls: string[] = [];
     const reply = (text: string) => new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text }] }, finishReason: 'STOP' }] }), { status: 200 });
-    vi.stubGlobal('fetch', vi.fn(async (_url: string, init: RequestInit) => {
+    const sse = (...texts: string[]) => new Response(
+      texts.map((t) => `data: ${JSON.stringify({ candidates: [{ content: { parts: [{ text: t }] } }] })}\n\n`).join(''),
+      { status: 200, headers: { 'Content-Type': 'text/event-stream' } }
+    );
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init: RequestInit) => {
+      urls.push(url);
       bodies.push(JSON.parse(String(init.body)));
       return bodies.length === 1
         ? reply(JSON.stringify({ descrizione: 'Corridoio con estintore a polvere a parete.', tipo_opera: 'ufficio', elementi: ['estintore'], parole_chiave: ['estintore', 'antincendio'], limiti: '' }))
-        : reply('### Cosa si vede\nUn estintore.\n\n### Possibili non conformità\n1. **Cartello mancante** — … *Riferimento*: [formazione-antincendio-punti-chiave]');
+        : sse('### Cosa si vede\nUn estintore.\n\n', '### Possibili non conformità\n1. **Cartello mancante** — … *Riferimento*: [formazione-antincendio-punti-chiave]');
     }));
 
     const { analyzePhotos } = await import('../src/lib/photo');
     const steps: string[] = [];
-    const r = await analyzePhotos([img], 'corridoio piano terra', { apiKey: 'k', model: 'gemini-2.5-flash', autoCheck: true, webCheck: false, categorie: [] }, new AbortController().signal, (s) => steps.push(s));
+    const partial: string[] = [];
+    const photo = { ...img, small: { mimeType: 'image/jpeg', data: 'BBBB' } };
+    const r = await analyzePhotos(
+      [photo], 'corridoio piano terra', { apiKey: 'k', model: 'gemini-2.5-flash', autoCheck: true, webCheck: false, categorie: [] },
+      new AbortController().signal, (s) => steps.push(s), (t, results) => partial.push(`${results.length}:${t}`)
+    );
 
     expect(steps).toEqual(['descrizione', 'ricerca', 'analisi']);
     expect(bodies).toHaveLength(2);
-    expect(bodies.every((b) => 'inlineData' in b.contents[0].parts[0])).toBe(true);
+    // passo 1: foto piccola, ragionamento minimo, chiamata normale; passo 2: foto intera, in tempo reale
+    expect(bodies[0].contents[0].parts[0]).toEqual({ inlineData: { mimeType: 'image/jpeg', data: 'BBBB' } });
+    expect(bodies[0].generationConfig).toMatchObject({ thinkingConfig: { thinkingBudget: 0 } });
+    expect(urls[0]).toMatch(/:generateContent$/);
+    expect(bodies[1].contents[0].parts[0]).toEqual({ inlineData: img });
+    expect(bodies[1].generationConfig).toMatchObject({ thinkingConfig: { thinkingBudget: 512 } });
+    expect(urls[1]).toMatch(/:streamGenerateContent\?alt=sse$/);
     const ids = r.results.map((x) => x.record.id);
     expect(ids).toContain('schede-tecniche-registro-dispositivi-sicurezza');
     expect(ids).toContain('formazione-antincendio-punti-chiave');
     expect(textOf(bodies[1])).toContain('id: formazione-antincendio-punti-chiave');
     expect(r.answer.text).toContain('[formazione-antincendio-punti-chiave]');
+    expect(partial).toHaveLength(2);
+    expect(partial[0]).toBe(`${r.results.length}:### Cosa si vede\nUn estintore.\n\n`);
+  });
+
+  it('lettura rapida non riuscita (sovraccarico) → l\'analisi prosegue con la nota', async () => {
+    const bodies: GeminiRequest[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (_url: string, init: RequestInit) => {
+      bodies.push(JSON.parse(String(init.body)));
+      if (bodies.length === 1) return new Response(JSON.stringify({ error: { code: 503, status: 'UNAVAILABLE' } }), { status: 503 });
+      return new Response(`data: ${JSON.stringify({ candidates: [{ content: { parts: [{ text: '### Cosa si vede\nUn estintore.' }] }, finishReason: 'STOP' }] })}\n\n`, { status: 200 });
+    }));
+    const { analyzePhotos } = await import('../src/lib/photo');
+    const r = await analyzePhotos([img], 'estintore', { apiKey: 'k', model: 'gemini-2.5-flash', autoCheck: true, webCheck: false, categorie: [] }, new AbortController().signal);
+    expect(bodies).toHaveLength(2);
+    expect(r.query).toBe('estintore');
+    expect(textOf(bodies[1])).not.toContain('DESCRIZIONE PRELIMINARE');
+    expect(r.answer.text).toContain('Un estintore');
   });
 
   it('quota esaurita al primo passo → errore chiaro, nessuna seconda chiamata', async () => {

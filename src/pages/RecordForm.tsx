@@ -41,8 +41,11 @@ export function RecordForm({ id }: { id?: string }) {
 
   if (!draft) return <p class="muted">{errore || 'Caricamento…'}</p>;
 
-  const set = (k: keyof Draft) => (e: Event) =>
-    setDraft({ ...draft, [k]: (e.target as HTMLInputElement | HTMLTextAreaElement).value });
+  // aggiornamenti funzionali: la categoria predefinita impostata al caricamento non cancella ciò che si sta scrivendo
+  const set = (k: keyof Draft) => (e: Event) => {
+    const v = (e.target as HTMLInputElement | HTMLTextAreaElement).value;
+    setDraft((d) => d && { ...d, [k]: v });
+  };
 
   const onSubmit = async (e: Event) => {
     e.preventDefault();
@@ -99,7 +102,7 @@ export function RecordForm({ id }: { id?: string }) {
       <div class="form-row">
         <label>
           Categoria
-          <CategoryPicker value={draft.categoria} onChange={(v) => setDraft({ ...draft, categoria: v })} />
+          <CategoryPicker value={draft.categoria} onChange={(v) => setDraft((d) => d && { ...d, categoria: v })} />
         </label>
         <label>
           Data aggiornamento
@@ -135,7 +138,7 @@ export function RecordForm({ id }: { id?: string }) {
           type="checkbox"
           role="switch"
           checked={draft.demo}
-          onChange={(e) => setDraft({ ...draft, demo: (e.target as HTMLInputElement).checked })}
+          onChange={(e) => { const demo = (e.target as HTMLInputElement).checked; setDraft((d) => d && { ...d, demo }); }}
         />
       </label>
 

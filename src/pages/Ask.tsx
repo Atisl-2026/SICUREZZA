@@ -103,7 +103,9 @@ function AskMain({ online, access }: Props) {
     if (only !== 'web') {
       if (!why && res.length) {
         setAi('db', { status: 'loading' });
-        jobs.push(askDatabase(question, res, s, ctrl.signal).then((v) => { if (!ctrl.signal.aborted) setAi('db', v); }));
+        jobs.push(askDatabase(question, res, s, ctrl.signal, (partial) => {
+          if (!ctrl.signal.aborted && partial.trim()) setAi('db', { status: 'loading', partial });
+        }).then((v) => { if (!ctrl.signal.aborted) setAi('db', v); }));
       } else setAi('db', IDLE);
     }
     if (only !== 'db') {

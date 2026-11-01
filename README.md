@@ -160,7 +160,7 @@ Il codice resta solo sul telefono del programmatore e serve a pubblicare. Alla s
 | Situazione | Risultato |
 |---|---|
 | Demo, socio senza password AI, **offline** | i brani trovati come schede, con titolo, fonte e parole evidenziate |
-| **Online con AI** (programmatore o socio con password AI) | sezione **Dal database**: risposta di Gemini basata **solo** sui brani trovati, con i numeri delle fonti cliccabili e l'elenco delle schede citate; i brani restano consultabili |
+| **Online con AI** (programmatore o socio con password AI) | sezione **Dal database**: risposta di Gemini basata **solo** sui brani trovati, che compare mentre Gemini la scrive, con i numeri delle fonti cliccabili e l'elenco delle schede citate; i brani restano consultabili |
 | Interruttore **Verifica anche sul web** attivo | in più, sezione separata **Dal web**: risposta con la Ricerca Google e link alle fonti |
 
 Le due sezioni non vengono mai mescolate: *Dal database* = i tuoi documenti, *Dal web* = internet.
@@ -203,10 +203,12 @@ Per il programmatore e i soci con la password AI, nella scheda **Chiedi** c'è *
 1. **Scatta foto** o sceglile **Dalla galleria** (fino a 3, più angolazioni aiutano) e, se vuoi, scrivi cosa stai
    controllando (es. *«ponteggio facciata nord, terzo impalcato»*).
 2. **Analizza**: l'app
-   - riduce le foto (lato lungo 1600 px) e **toglie i dati nascosti** (posizione GPS, modello del telefono);
-   - chiede a Gemini di descrivere cosa si vede e quali parole chiave cercare;
+   - riduce le foto (lato lungo 1280 px, più una copia da 640 px) e **toglie i dati nascosti** (posizione GPS,
+     modello del telefono);
+   - con le copie piccole chiede a Gemini, in pochi secondi, che cosa si vede e quali parole chiave cercare;
    - cerca quelle parole **nell'archivio** (normativa, procedure, schede);
-   - chiede a Gemini di confrontare le foto con i brani trovati.
+   - chiede a Gemini di confrontare le foto con i brani trovati: **la risposta compare mentre viene scritta**,
+     come nell'app di Gemini, senza aspettare la fine.
 3. La risposta ha sempre quattro parti: **Cosa si vede**, **Possibili non conformità** (con gravità e riferimento:
    il numero apre la scheda dell'archivio; se la norma non è nell'archivio lo dice, senza inventare articoli),
    **Non valutabile dalle immagini**, **Verifiche consigliate sul posto**.
@@ -215,6 +217,10 @@ Per il programmatore e i soci con la password AI, nella scheda **Chiedi** c'è *
 Da sapere:
 
 - serve la connessione (l'analisi delle immagini avviene su Google Gemini); le foto non vengono salvate nell'app;
+- velocità: l'app chiede a Gemini di «ragionare» poco (risposte più rapide) e mostra il testo man mano che arriva;
+  il messaggio «Gemini non ha risposto in tempo» compare solo se Gemini resta in silenzio per 45 secondi. Se la prima
+  lettura rapida non riesce, l'analisi prosegue comunque cercando nell'archivio con la tua nota. Per la massima
+  rapidità usa un modello «Flash» (Impostazioni → Modello), non «Pro»;
 - le violazioni vengono citate solo se la norma è nell'archivio: per i ponteggi, per esempio, carica le parti del
   D.Lgs. 81/2008 sui ponteggi e le vostre procedure;
 - è un **supporto**: l'AI può non vedere tutto o sbagliare e non sostituisce il sopralluogo né la valutazione del tecnico;

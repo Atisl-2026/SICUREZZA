@@ -30,11 +30,11 @@ describe('modello ritirato: scelta automatica e nuovo tentativo', () => {
     const calls: string[] = [];
     vi.stubGlobal('fetch', vi.fn(async (url: string) => {
       calls.push(url);
-      if (url.includes(':generateContent')) {
+      if (url.includes(':streamGenerateContent')) {
         if (url.includes('gemini-2.5-flash:')) {
           return new Response(JSON.stringify({ error: { code: 404, status: 'NOT_FOUND', message: 'models/gemini-2.5-flash is not found for API version v1beta' } }), { status: 404 });
         }
-        return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: 'Risposta.' }] }, finishReason: 'STOP' }] }), { status: 200 });
+        return new Response(`data: ${JSON.stringify({ candidates: [{ content: { parts: [{ text: 'Risposta.' }] }, finishReason: 'STOP' }] })}\n\n`, { status: 200 });
       }
       return new Response(JSON.stringify({
         models: [
@@ -50,9 +50,9 @@ describe('modello ritirato: scelta automatica e nuovo tentativo', () => {
     const res = await askDatabase('domanda', [], await getSettings(), new AbortController().signal);
     expect(res.status).toBe('done');
     expect(calls.map((u) => u.replace(/^https:\/\/[^/]+\/v1beta/, ''))).toEqual([
-      '/models/gemini-2.5-flash:generateContent',
+      '/models/gemini-2.5-flash:streamGenerateContent?alt=sse',
       '/models?pageSize=200',
-      '/models/gemini-3.0-flash:generateContent'
+      '/models/gemini-3.0-flash:streamGenerateContent?alt=sse'
     ]);
     expect((await getSettings()).model).toBe('gemini-3.0-flash');
   });

@@ -1,5 +1,5 @@
 import {
-  buildDbRequest, buildWebRequest, callGemini, GeminiError, type ContextBlock, type GeminiAnswer
+  buildDbRequest, buildWebRequest, callGemini, GeminiError, streamGemini, type ContextBlock, type GeminiAnswer
 } from '../shared/gemini.ts';
 import type { LocalResult } from './search';
 import type { Settings } from './settings';
@@ -7,7 +7,7 @@ import { withModelFallback } from './model';
 
 export type AiState =
   | { status: 'idle' }
-  | { status: 'loading' }
+  | { status: 'loading'; /** testo che sta arrivando */ partial?: string }
   | { status: 'done'; answer: GeminiAnswer }
   | { status: 'error'; error: GeminiError; disabledWeb?: boolean };
 
@@ -26,10 +26,19 @@ const asGeminiError = (e: unknown) =>
   e instanceof GeminiError ? e : new GeminiError('sconosciuto', (e as Error)?.message || 'Errore imprevisto.');
 
 /** Risposta "Dal database": solo sulla base dei blocchi trovati localmente. */
-export async function askDatabase(question: string, results: LocalResult[], s: Settings, signal: AbortSignal): Promise<AiState> {
+export async function askDatabase(
+  question: string,
+  results: LocalResult[],
+  s: Settings,
+  signal: AbortSignal,
+  onPartial: (text: string) => void = () => {}
+): Promise<AiState> {
   try {
+    // in tempo reale: il testo compare mentre Gemini lo scrive; il tempo massimo vale per il silenzio
     const answer = await withModelFallback(s, (model) =>
-      callGemini(buildDbRequest(question, toBlocks(results)), { apiKey: s.apiKey, model, timeoutMs: 40000, signal })
+      streamGemini(buildDbRequest(question, toBlocks(results)), {
+        apiKey: s.apiKey, model, timeoutMs: 40000, signal, thinking: 'low', onText: onPartial
+      })
     );
     return { status: 'done', answer };
   } catch (e) {
@@ -46,7 +55,7 @@ export function shouldDisableWeb(e: GeminiError): boolean {
 export async function askWeb(question: string, s: Settings, signal: AbortSignal): Promise<AiState> {
   try {
     const answer = await withModelFallback(s, (model) =>
-      callGemini(buildWebRequest(question), { apiKey: s.apiKey, model, timeoutMs: 60000, signal })
+      callGemini(buildWebRequest(question), { apiKey: s.apiKey, model, timeoutMs: 60000, signal, thinking: 'low' })
     );
     return { status: 'done', answer };
   } catch (e) {

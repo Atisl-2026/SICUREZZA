@@ -17,24 +17,25 @@ export interface PhotoDescription {
   limiti: string;
 }
 
-export const SYSTEM_PHOTO_DESCRIBE = `Sei un tecnico esperto di sicurezza sul lavoro. Osserva con attenzione le immagini.
-Descrivi in italiano, in modo oggettivo, cosa si vede: tipo di opera o luogo di lavoro, attrezzature, opere provvisionali
-(ponteggi, parapetti, scale, trabattelli…), macchine, impianti, lavoratori e dispositivi di protezione indossati o mancanti,
-condizioni dell'area. Non trarre ancora conclusioni sulle violazioni.
-Indica anche le parole chiave tecniche (in italiano, al singolare) utili per cercare la normativa e le procedure pertinenti.
-Indica cosa NON è valutabile dalle immagini (parti nascoste, inquadratura, risoluzione, distanze).`;
+// Il passo 1 serve solo a capire cosa cercare nell'archivio: deve essere rapidissimo
+// (foto piccole, poco ragionamento, risposta breve). L'analisi vera è al passo 2.
+export const SYSTEM_PHOTO_DESCRIBE = `Sei un tecnico della sicurezza sul lavoro. Guarda le immagini e rispondi in modo molto sintetico, in italiano:
+che tipo di opera o luogo di lavoro è, cosa si vede di rilevante per la sicurezza (opere provvisionali, attrezzature,
+macchine, lavoratori e DPI) e le parole chiave tecniche (al singolare) per cercare la normativa pertinente.
+Non valutare ancora le violazioni.`;
 
-/** Schema della risposta del passo 1 (risposta JSON strutturata). */
+/** Schema della risposta del passo 1 (risposta JSON strutturata e breve). */
 export const DESCRIBE_SCHEMA = {
   type: 'OBJECT',
   properties: {
-    descrizione: { type: 'STRING', description: 'Descrizione oggettiva di ciò che si vede, 3-6 frasi' },
     tipo_opera: { type: 'STRING', description: 'Tipo di opera o ambiente, es. "ponteggio metallico fisso", "scavo", "officina"' },
-    elementi: { type: 'ARRAY', items: { type: 'STRING' }, description: 'Elementi rilevanti visibili' },
-    parole_chiave: { type: 'ARRAY', items: { type: 'STRING' }, description: '5-12 parole chiave tecniche per cercare le norme' },
-    limiti: { type: 'STRING', description: 'Cosa non è valutabile dalle immagini' }
+    descrizione: { type: 'STRING', description: 'Cosa si vede, 1-2 frasi' },
+    parole_chiave: { type: 'ARRAY', items: { type: 'STRING' }, description: '5-10 parole chiave tecniche per cercare le norme' },
+    elementi: { type: 'ARRAY', items: { type: 'STRING' }, description: 'Elementi rilevanti visibili (al massimo 8)' },
+    limiti: { type: 'STRING', description: 'Cosa non è valutabile dalle immagini (breve, facoltativo)' }
   },
-  required: ['descrizione', 'tipo_opera', 'elementi', 'parole_chiave', 'limiti']
+  required: ['tipo_opera', 'descrizione', 'parole_chiave'],
+  propertyOrdering: ['tipo_opera', 'descrizione', 'parole_chiave', 'elementi', 'limiti']
 } as const;
 
 export const SYSTEM_PHOTO_ANALYSIS = `Sei un assistente tecnico per ispettori e tecnici della sicurezza sul lavoro.
@@ -66,12 +67,12 @@ const imageParts = (images: PhotoImage[]) => images.map((i) => ({ inlineData: { 
 /** Passo 1: descrizione e parole chiave (risposta JSON). */
 export function buildDescribeRequest(images: PhotoImage[], note: string): GeminiRequest {
   const text = note.trim()
-    ? `Nota dell'ispettore: ${note.trim()}\n\nDescrivi le immagini.`
-    : 'Descrivi le immagini.';
+    ? `Nota dell'ispettore: ${note.trim()}\n\nDescrivi brevemente le immagini.`
+    : 'Descrivi brevemente le immagini.';
   return {
     systemInstruction: { parts: [{ text: SYSTEM_PHOTO_DESCRIBE }] },
     contents: [{ role: 'user', parts: [...imageParts(images), { text }] }],
-    generationConfig: { temperature: 0.2, responseMimeType: 'application/json', responseSchema: DESCRIBE_SCHEMA }
+    generationConfig: { temperature: 0.2, maxOutputTokens: 2048, responseMimeType: 'application/json', responseSchema: DESCRIBE_SCHEMA }
   };
 }
 
@@ -126,7 +127,7 @@ export function buildAnalysisRequest(images: PhotoImage[], note: string, desc: P
   const text = [
     context,
     '===',
-    `DESCRIZIONE PRELIMINARE: ${desc.descrizione}${desc.tipo_opera ? ` (${desc.tipo_opera})` : ''}`,
+    (desc.descrizione || desc.tipo_opera) && `DESCRIZIONE PRELIMINARE: ${desc.descrizione}${desc.tipo_opera ? ` (${desc.tipo_opera})` : ''}`,
     desc.limiti && `LIMITI GIÀ RILEVATI: ${desc.limiti}`,
     note.trim() && `NOTA DELL'ISPETTORE: ${note.trim()}`,
     'Analizza le immagini e indica le possibili non conformità secondo le regole.'

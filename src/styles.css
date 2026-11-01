@@ -671,3 +671,7 @@ a.link-btn.apk-link { display: inline-flex; align-items: center; justify-content
 .cat-edit .btn-row { justify-content: flex-end; }
 .cat-list { list-style: none; margin: 0 0 14px; padding: 4px 0; }
 .cat-list .cat-row + .cat-row { border-top: 1px solid var(--border); }
+
+/* risposta che arriva in tempo reale */
+.streaming { display: flex; align-items: center; gap: 8px; margin: 10px 0 0; }
+.streaming .spinner { width: 14px; height: 14px; border-width: 2px; color: var(--primary); flex: none; }

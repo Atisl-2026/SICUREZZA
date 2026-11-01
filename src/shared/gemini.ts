@@ -219,6 +219,10 @@ export function classifyHttpError(status: number, body: unknown): GeminiError {
   if (has(/location is not supported|not available in your (country|region)/i)) {
     return new GeminiError('regione', "L'API Gemini non è disponibile nel paese da cui ti colleghi.", status);
   }
+  if (has(/thinking/i)) {
+    // parametro di "ragionamento" non accettato dal modello: l'app riprova senza (vedi withThinkingRetry)
+    return new GeminiError('sconosciuto', `Errore Gemini (${status}): ${msg}`, status);
+  }
   if (has(/search|grounding|google_search|tool/i) && has(/not supported|not enabled|unsupported|not available|is not allowed/i)) {
     return new GeminiError('non-supportato', 'Il modello scelto non supporta la ricerca Google.', status);
   }
@@ -239,19 +243,175 @@ export function classifyHttpError(status: number, body: unknown): GeminiError {
 export interface CallOptions {
   apiKey: string;
   model: string;
+  /** Chiamata normale: tempo massimo totale. Streaming: tempo massimo di silenzio tra un pezzo e l'altro. */
   timeoutMs?: number;
   signal?: AbortSignal;
   fetchImpl?: typeof fetch;
+  /**
+   * Quanto il modello deve "ragionare" prima di rispondere: meno ragionamento = risposta più rapida.
+   * Ignorato dai modelli che non lo prevedono.
+   */
+  thinking?: ThinkingLevel;
+}
+
+export type ThinkingLevel = 'minimal' | 'low';
+
+/** Modelli che hanno rifiutato il parametro di ragionamento (si chiamano senza). */
+const noThinking = new Set<string>();
+
+/** Parametro di ragionamento adatto al modello (le famiglie di Gemini usano parametri diversi). */
+export function thinkingConfigFor(model: string, level: ThinkingLevel): Record<string, unknown> | undefined {
+  const m = cleanModelName(model);
+  if (noThinking.has(m)) return undefined;
+  if (/gemini-(1\.|2\.0)/i.test(m)) return undefined; // modelli senza ragionamento
+  if (/gemini-2\.5-pro/i.test(m)) return { thinkingBudget: 128 }; // minimo consentito
+  if (/gemini-2\.5/i.test(m)) return { thinkingBudget: level === 'minimal' ? 0 : 512 };
+  // Gemini 3 e successivi (anche gli alias "-latest"): livello di ragionamento
+  return { thinkingLevel: level === 'minimal' && !/pro/i.test(m) ? 'minimal' : 'low' };
+}
+
+function withThinkingConfig(req: GeminiRequest, cfg: Record<string, unknown>): GeminiRequest {
+  return { ...req, generationConfig: { ...(req.generationConfig ?? {}), thinkingConfig: cfg } };
+}
+
+/** Esegue con il ragionamento ridotto; se il modello rifiuta il parametro riprova senza (e lo ricorda). */
+async function withThinkingRetry<T>(req: GeminiRequest, opts: CallOptions, run: (r: GeminiRequest) => Promise<T>): Promise<T> {
+  const model = cleanModelName(opts.model);
+  const cfg = opts.thinking ? thinkingConfigFor(model, opts.thinking) : undefined;
+  if (!cfg) return run(req);
+  try {
+    return await run(withThinkingConfig(req, cfg));
+  } catch (e) {
+    if (e instanceof GeminiError && e.status === 400 && /thinking/i.test(e.message)) {
+      noThinking.add(model);
+      return run(req);
+    }
+    throw e;
+  }
 }
 
 /** POST generateContent. Restituisce la risposta già interpretata o lancia GeminiError. */
 export async function callGemini(req: GeminiRequest, opts: CallOptions): Promise<GeminiAnswer> {
-  const json = await requestJson(
+  return withThinkingRetry(req, opts, async (r) => parseGeminiResponse(await requestJson(
     `${GEMINI_ENDPOINT}/models/${encodeURIComponent(cleanModelName(opts.model))}:generateContent`,
-    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(req) },
+    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(r) },
     opts
-  );
-  return parseGeminiResponse(json);
+  )));
+}
+
+export interface StreamOptions extends CallOptions {
+  /** Chiamata a ogni nuovo pezzo con tutto il testo ricevuto finora. */
+  onText?: (text: string) => void;
+}
+
+/**
+ * Risposta in tempo reale (streamGenerateContent, Server-Sent Events): il testo arriva a pezzi
+ * e l'interfaccia lo mostra subito. Il tempo massimo vale per il silenzio, non per la risposta intera.
+ * Senza supporto allo streaming nel browser ricade sulla chiamata normale.
+ */
+export async function streamGemini(req: GeminiRequest, opts: StreamOptions): Promise<GeminiAnswer> {
+  if (typeof ReadableStream === 'undefined' || typeof TextDecoder === 'undefined') return callGemini(req, opts);
+  return withThinkingRetry(req, opts, (r) => streamRequest(r, opts));
+}
+
+interface StreamChunk extends RawResponse {
+  error?: { code?: number; message?: string; status?: string };
+}
+
+async function streamRequest(req: GeminiRequest, opts: StreamOptions): Promise<GeminiAnswer> {
+  if (!opts.apiKey.trim()) throw new GeminiError('chiave', 'Manca la chiave API Gemini: inseriscila nelle Impostazioni.');
+  const doFetch = opts.fetchImpl ?? fetch;
+  const ctrl = new AbortController();
+  const idleMs = opts.timeoutMs ?? 45000;
+  let timedOut = false;
+  let timer = setTimeout(() => { timedOut = true; ctrl.abort(); }, idleMs);
+  const poke = () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => { timedOut = true; ctrl.abort(); }, idleMs);
+  };
+  const onAbort = () => ctrl.abort();
+  opts.signal?.addEventListener('abort', onAbort);
+
+  let text = '';
+  let finishReason: string | undefined;
+  let grounding: RawCandidate['groundingMetadata'];
+  let blockReason: string | undefined;
+  const fail = (): never => {
+    if (timedOut) throw new GeminiError('timeout', 'Gemini non ha risposto in tempo. Riprova tra poco.');
+    if (opts.signal?.aborted) throw new GeminiError('annullata', 'Richiesta annullata.');
+    throw new GeminiError('rete', 'Connessione interrotta durante la risposta di Gemini: controlla la rete e riprova.');
+  };
+
+  try {
+    let res: Response;
+    try {
+      res = await doFetch(`${GEMINI_ENDPOINT}/models/${encodeURIComponent(cleanModelName(opts.model))}:streamGenerateContent?alt=sse`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': opts.apiKey.trim() },
+        body: JSON.stringify(req),
+        signal: ctrl.signal
+      });
+    } catch {
+      return fail();
+    }
+    if (!res.ok) {
+      let body: unknown = null;
+      try { body = await res.json(); } catch { /* corpo non JSON */ }
+      throw classifyHttpError(res.status, body);
+    }
+
+    const handle = (data: string) => {
+      let chunk: StreamChunk;
+      try { chunk = JSON.parse(data); } catch { return; }
+      if (chunk.error) throw classifyHttpError(chunk.error.code ?? 500, { error: chunk.error });
+      if (chunk.promptFeedback?.blockReason) blockReason = chunk.promptFeedback.blockReason;
+      const cand = chunk.candidates?.[0];
+      if (!cand) return;
+      for (const p of cand.content?.parts ?? []) if (!p.thought && typeof p.text === 'string') text += p.text;
+      if (cand.finishReason) finishReason = cand.finishReason;
+      if (cand.groundingMetadata?.groundingChunks?.length || cand.groundingMetadata?.searchEntryPoint) grounding = cand.groundingMetadata;
+      opts.onText?.(text);
+    };
+    const consume = (buffer: string): string => {
+      const events = buffer.split(/\r?\n\r?\n/);
+      const rest = events.pop() ?? '';
+      for (const ev of events) {
+        const data = ev.split(/\r?\n/).filter((l) => l.startsWith('data:')).map((l) => l.slice(5).trimStart()).join('\n');
+        if (data) handle(data);
+      }
+      return rest;
+    };
+
+    if (!res.body) {
+      consume((await res.text()) + '\n\n');
+    } else {
+      const reader = res.body.getReader();
+      const dec = new TextDecoder();
+      let buf = '';
+      try {
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          poke();
+          buf = consume(buf + dec.decode(value, { stream: true }));
+        }
+        consume(buf + dec.decode() + '\n\n');
+      } catch (e) {
+        if (e instanceof GeminiError) throw e;
+        // interruzione a metà: se è già arrivato del testo lo si mostra come risposta troncata
+        if (!text.trim()) fail();
+        finishReason = 'MAX_TOKENS';
+      }
+    }
+  } finally {
+    clearTimeout(timer);
+    opts.signal?.removeEventListener('abort', onAbort);
+  }
+
+  return parseGeminiResponse({
+    candidates: text || finishReason ? [{ content: { parts: [{ text }] }, finishReason, groundingMetadata: grounding }] : [],
+    promptFeedback: blockReason ? { blockReason } : undefined
+  });
 }
 
 /** Verifica chiave e modello senza consumare quota di generazione (GET models/{modello}). */

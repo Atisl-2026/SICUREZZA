@@ -6,6 +6,7 @@ import { recordHref } from '../lib/route';
 import { getSettings } from '../lib/settings';
 import { citedIds, splitCitations, type GeminiError } from '../shared/gemini.ts';
 import { BRAND } from '../branding';
+import type { LocalResult } from '../lib/search';
 
 interface PhotoState {
   photos: PreparedPhoto[];
@@ -13,10 +14,12 @@ interface PhotoState {
   step: PhotoStep | null;
   result: PhotoAnalysis | null;
   error: GeminiError | null;
+  /** testo dell'analisi che sta arrivando */
+  partial: { text: string; results: LocalResult[] } | null;
 }
 
 // Lo stato sopravvive al cambio di scheda; le foto non vengono salvate sul dispositivo.
-let saved: PhotoState = { photos: [], note: '', step: null, result: null, error: null };
+let saved: PhotoState = { photos: [], note: '', step: null, result: null, error: null, partial: null };
 let inflight: AbortController | null = null;
 
 const STEPS: { id: PhotoStep; label: string }[] = [
@@ -44,6 +47,7 @@ export function PhotoPage({ online }: { online: boolean }) {
   const [step, setStep] = useState(saved.step);
   const [result, setResult] = useState(saved.result);
   const [error, setError] = useState(saved.error);
+  const [partial, setPartial] = useState(saved.partial);
   const [prepError, setPrepError] = useState('');
   const [preparing, setPreparing] = useState(false);
   const [showBlocks, setShowBlocks] = useState(false);
@@ -58,8 +62,8 @@ export function PhotoPage({ online }: { online: boolean }) {
     return () => { mounted.current = false; };
   }, []);
   useEffect(() => {
-    saved = { photos, note, step, result, error };
-  }, [photos, note, step, result, error]);
+    saved = { photos, note, step, result, error, partial };
+  }, [photos, note, step, result, error, partial]);
 
   /** aggiorna anche se nel frattempo l'utente ha cambiato schermata */
   const patch = (p: Partial<PhotoState>) => {
@@ -68,6 +72,7 @@ export function PhotoPage({ online }: { online: boolean }) {
     if ('step' in p) setStep(p.step ?? null);
     if ('result' in p) setResult(p.result ?? null);
     if ('error' in p) setError(p.error ?? null);
+    if ('partial' in p) setPartial(p.partial ?? null);
   };
 
   const onFiles = async (e: Event) => {
@@ -103,15 +108,29 @@ export function PhotoPage({ online }: { online: boolean }) {
     inflight?.abort();
     const ctrl = new AbortController();
     inflight = ctrl;
-    patch({ result: null, error: null, step: 'descrizione' });
+    patch({ result: null, error: null, partial: null, step: 'descrizione' });
+    let scrolled = false;
+    const scroll = () => {
+      if (scrolled) return;
+      scrolled = true;
+      requestAnimationFrame(() => resultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+    };
     try {
-      const r = await analyzePhotos(photos, note, await getSettings(), ctrl.signal, (s) => patch({ step: s }));
+      const r = await analyzePhotos(
+        photos, note, await getSettings(), ctrl.signal,
+        (s) => { if (!ctrl.signal.aborted) patch({ step: s }); },
+        (text, results) => {
+          if (ctrl.signal.aborted || !text.trim()) return;
+          patch({ partial: { text, results } });
+          scroll();
+        }
+      );
       if (!ctrl.signal.aborted) {
-        patch({ result: r, step: null });
-        requestAnimationFrame(() => resultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+        patch({ result: r, partial: null, step: null });
+        scroll();
       }
     } catch (e) {
-      if (!ctrl.signal.aborted) patch({ error: asGeminiError(e), step: null });
+      if (!ctrl.signal.aborted) patch({ error: asGeminiError(e), partial: null, step: null });
     }
   };
 
@@ -120,7 +139,7 @@ export function PhotoPage({ online }: { online: boolean }) {
     photos.forEach((p) => URL.revokeObjectURL(p.preview));
     setPhotos([]);
     setNote('');
-    patch({ result: null, error: null, step: null });
+    patch({ result: null, error: null, partial: null, step: null });
   };
 
   const copy = async () => {
@@ -138,8 +157,9 @@ export function PhotoPage({ online }: { online: boolean }) {
     }
   };
 
-  const ids = new Set(result?.results.map((r) => r.record.id));
-  const titles = new Map(result?.results.map((r) => [r.record.id, r.record.titolo]));
+  const shown = result?.results ?? partial?.results ?? [];
+  const ids = new Set(shown.map((r) => r.record.id));
+  const titles = new Map(shown.map((r) => [r.record.id, r.record.titolo]));
   const cited = result ? citedIds(result.answer.text, ids) : [];
   const busy = step !== null;
 
@@ -197,7 +217,7 @@ export function PhotoPage({ online }: { online: boolean }) {
         {!online && <p class="muted small">L'analisi delle foto richiede la connessione.</p>}
       </div>
 
-      {busy && (
+      {busy && !partial && (
         <ol class="card photo-steps" aria-live="polite">
           {STEPS.map((s, i) => {
             const cur = STEPS.findIndex((x) => x.id === step);
@@ -217,6 +237,15 @@ export function PhotoPage({ online }: { online: boolean }) {
           {['timeout', 'rete', 'sovraccarico', 'sconosciuto', 'vuota'].includes(error.kind) && (
             <button type="button" class="btn" onClick={analyze}>Riprova</button>
           )}
+        </div>
+      )}
+
+      {partial && !result && (
+        <div ref={resultRef} class="photo-result-wrap">
+          <article class="card ai-card photo-result" aria-label="Analisi in arrivo" aria-busy="true">
+            <Markdown text={partial.text} ids={ids} label={(id) => String(citedIds(partial.text, ids).indexOf(id) + 1)} titleOf={(id) => titles.get(id) ?? id} />
+            <p class="muted small streaming"><span class="spinner" aria-hidden="true" /> Gemini sta scrivendo…</p>
+          </article>
         </div>
       )}
 
