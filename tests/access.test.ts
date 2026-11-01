@@ -248,3 +248,16 @@ describe('accessi nell\'app', () => {
     expect((await getSettings()).apiKey).toBe('');
   });
 });
+
+describe('versioni', () => {
+  it('due pubblicazioni ravvicinate hanno versioni diverse e ordinate', async () => {
+    const { newVersion } = await import('../src/shared/publish.ts');
+    const { compareVersions } = await import('../src/shared/normalize.ts');
+    const a = newVersion(new Date(2026, 10, 1, 13, 1, 27, 5));
+    const b = newVersion(new Date(2026, 10, 1, 13, 1, 27, 900));
+    expect(a).toBe('2026.11.01.130127.005');
+    expect(compareVersions(b, a)).toBeGreaterThan(0);
+    // compatibile con le versioni senza millesimi già pubblicate
+    expect(compareVersions(a, '2026.11.01.130126')).toBeGreaterThan(0);
+  });
+});

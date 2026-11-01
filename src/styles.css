@@ -480,3 +480,27 @@ dl.kv.card dd { overflow-wrap: anywhere; }
 }
 .banner-error-text { color: var(--danger); }
 @media (max-width: 380px) { .topbar h1 { font-size: 1rem; } .role-badge { padding: 3px 8px; } }
+
+/* ===== Pubblicazione e caricamento (programmatore) ===== */
+.publish-panel.has-pending { border-color: var(--primary); border-width: 2px; }
+.publish-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.publish-msg { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; margin-top: 12px; }
+.publish-msg .link-btn { padding: 0; min-height: 32px; }
+.actions-wide { grid-column: 1 / -1; }
+.subhead { margin: 18px 0 6px; font-size: 0.95rem; }
+.new-password { margin-bottom: 8px; }
+.stop-ai { margin-top: 8px; }
+.reset-box { margin-top: 8px; }
+.reset-box .notice { margin: 0 0 12px; }
+
+.upload-saved { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 14px; }
+.upload-item.excluded { opacity: 0.5; }
+.upload-include { display: flex; align-items: center; gap: 10px; min-height: 40px; }
+.upload-include input { width: 22px; height: 22px; flex: none; }
+.upload-title {
+  width: 100%; min-height: 44px; margin: 6px 0; padding: 8px 12px; border-radius: 10px;
+  border: 1px solid var(--border); background: var(--surface); font-weight: 600;
+}
+.upload-preview { margin: 6px 0 0; color: var(--text-muted); white-space: pre-wrap; overflow-wrap: anywhere; }
+.upload-replace { margin: 4px 0 0; color: var(--warn); }
+.upload-save { margin-bottom: 16px; }

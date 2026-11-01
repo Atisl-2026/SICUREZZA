@@ -72,13 +72,29 @@ export default defineConfig({
         navigateFallback: 'index.html',
         cleanupOutdatedCaches: true,
         // I file dei dati NON vanno in precache: li gestisce l'app (versione + conferma).
-        globIgnores: ['**/data/*.json'],
-        runtimeCaching: []
+        // il lettore PDF (~1,7 MB) serve solo al programmatore: fuori dall'installazione,
+        // messo in cache al primo uso
+        globIgnores: ['**/data/*.json', '**/assets/pdf/**'],
+        runtimeCaching: [
+          {
+            urlPattern: ({ url }) => url.pathname.includes('/assets/pdf/'),
+            handler: 'CacheFirst',
+            options: { cacheName: 'lettore-pdf', expiration: { maxEntries: 20 } }
+          }
+        ]
       },
       devOptions: { enabled: false }
     })
   ],
-  build: { target: 'es2020' },
+  build: {
+    target: 'es2020',
+    rollupOptions: {
+      output: {
+        chunkFileNames: (chunk: { moduleIds: string[] }) =>
+          chunk.moduleIds.some((id: string) => id.includes('/node_modules/unpdf/')) ? 'assets/pdf/[name]-[hash].js' : 'assets/[name]-[hash].js'
+      }
+    }
+  },
   test: {
     environment: 'node',
     include: ['tests/**/*.test.ts']

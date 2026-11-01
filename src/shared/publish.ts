@@ -31,10 +31,10 @@ export interface SociPayload {
   ai?: Envelope;
 }
 
-/** Versione leggibile e ordinabile: 2026.11.01.143005 */
+/** Versione leggibile e ordinabile: 2026.11.01.143005.123 (con i millesimi: due pubblicazioni ravvicinate restano distinte) */
 export function newVersion(d = new Date()): string {
   const p = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}.${p(d.getMonth() + 1)}.${p(d.getDate())}.${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
+  return `${d.getFullYear()}.${p(d.getMonth() + 1)}.${p(d.getDate())}.${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}.${String(d.getMilliseconds()).padStart(3, '0')}`;
 }
 
 export function isSociFile(x: unknown): x is SociFile {

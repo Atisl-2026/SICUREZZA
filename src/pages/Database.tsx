@@ -1,5 +1,5 @@
 import { useRef, useState } from 'preact/hooks';
-import { buildBackup, clearAll, db, getMeta } from '../lib/db';
+import { buildBackup, db, getMeta } from '../lib/db';
 import { importFile, type ImportResult } from '../lib/importer';
 import { useLiveQuery } from '../lib/live';
 import { recordHref, useRoute } from '../lib/route';
@@ -9,6 +9,8 @@ import { stripAccents } from '../shared/normalize.ts';
 import { REMOTE_CHECK_EVENT } from '../components/RemoteUpdate';
 import { RecordDetail } from './RecordDetail';
 import { RecordForm } from './RecordForm';
+import { UploadPage } from './Upload';
+import { PublishPanel } from '../components/PublishPanel';
 
 interface Props {
   online: boolean;
@@ -22,6 +24,7 @@ export function DatabasePage({ online, isAdmin }: Props) {
   if (sub === 'record' && id) return <RecordDetail id={id} isAdmin={isAdmin} />;
   if (isAdmin && sub === 'nuovo') return <RecordForm />;
   if (isAdmin && sub === 'modifica' && id) return <RecordForm id={id} />;
+  if (isAdmin && sub === 'carica') return <UploadPage />;
   return <DatabaseHome online={online} isAdmin={isAdmin} />;
 }
 
@@ -79,12 +82,6 @@ function DatabaseHome({ online, isAdmin }: Props) {
     await saveFile(JSON.stringify(backup, null, 2), `consulta-backup-${stamp}.json`);
   };
 
-  const onClear = async () => {
-    if (!confirm('Eliminare TUTTI i record dal dispositivo?\n\nConsiglio: esporta prima un backup.')) return;
-    if (!confirm('Confermi? L\'operazione non si può annullare.')) return;
-    await clearAll();
-  };
-
   return (
     <section>
       <div class="card">
@@ -110,21 +107,24 @@ function DatabaseHome({ online, isAdmin }: Props) {
         </button>
       )}
 
+      {isAdmin && <PublishPanel online={online} />}
+
       {isAdmin && <div class="card">
         <div class="actions-grid">
           <a class="btn btn-primary" href="#database/nuovo">＋ Nuova scheda</a>
+          <a class="btn btn-primary" href="#database/carica">Carica documenti</a>
           <button class="btn" disabled={busy} onClick={() => fileInput.current?.click()}>
             {busy ? 'Importazione…' : 'Importa JSON/CSV'}
           </button>
+          <button class="btn" onClick={onExport} disabled={!info?.records}>Esporta backup</button>
           <button
-            class="btn"
+            class="btn actions-wide"
             disabled={!online}
             title={online ? '' : 'Disponibile quando sei online'}
             onClick={() => window.dispatchEvent(new Event(REMOTE_CHECK_EVENT))}
           >
             Controlla aggiornamenti
           </button>
-          <button class="btn" onClick={onExport} disabled={!info?.records}>Esporta backup</button>
         </div>
         <input ref={fileInput} type="file" accept=".json,.csv,.tsv,application/json,text/csv" hidden onChange={onImport} />
         {errore && <p class="notice notice-error" role="alert">{errore}</p>}
@@ -179,11 +179,6 @@ function DatabaseHome({ online, isAdmin }: Props) {
         </div>
       )}
 
-      {isAdmin && <details class="card danger-zone">
-        <summary>Zona pericolosa</summary>
-        <p class="small muted">Elimina tutti i dati dal dispositivo. I record remoti si possono riscaricare; quelli creati da te no.</p>
-        <button class="btn btn-danger btn-block" onClick={onClear} disabled={!info?.records}>Elimina tutti i record</button>
-      </details>}
     </section>
   );
 }

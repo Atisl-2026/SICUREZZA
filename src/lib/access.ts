@@ -217,3 +217,35 @@ export async function logout() {
   await db.meta.bulkDelete([KEY, 'aiEnvelope', 'indice', 'cronologia', 'versione', 'aggiornato_il']);
   await updateSettings({ apiKey: '', webCheck: false });
 }
+
+/**
+ * Programmatore che non ricorda la password soci: con il codice GitHub (che dà già pieno controllo
+ * del repository) imposta una nuova password. Le schede riservate pubblicate con la vecchia password
+ * non si possono decifrare: si riparte dalle schede demo (pubbliche) e si reimporta il resto
+ * (backup o db-generato.json); alla prima pubblicazione la nuova password vale per tutti.
+ */
+export async function loginAdminReset(token: string, newPassword: string, repoInput: string) {
+  const repo = normalizeRepo(repoInput);
+  if (!repo) throw new Error('Indica il repository nel formato proprietario/nome.');
+  if (newPassword.length < 8) throw new Error('La nuova password soci deve avere almeno 8 caratteri.');
+  const { repo: fullName, branch } = await verifyToken({ token, repo });
+
+  let versione = '';
+  try {
+    versione = (await fetchSoci()).versione;
+  } catch (e) {
+    if (!(e instanceof NotPublishedError)) throw e;
+  }
+  let demo: DbRecord[] = [];
+  try {
+    demo = (await fetchDemo()).records;
+  } catch (e) {
+    if (!(e instanceof NotPublishedError)) throw e;
+  }
+  await replaceRecords(demo, versione);
+  if (!versione) await db.meta.delete('versione');
+  // da ripubblicare: le schede demo devono finire anche nel nuovo file dei soci
+  await db.records.toCollection().modify((r) => { r.origine = 'locale'; });
+  await setAiEnvelope(undefined);
+  await setAccess({ ruolo: 'admin', sociKey: await deriveKey(newPassword), github: { token: token.trim(), repo: fullName, branch } });
+}

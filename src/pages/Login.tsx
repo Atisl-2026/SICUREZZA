@@ -1,5 +1,5 @@
 import { useState } from 'preact/hooks';
-import { defaultRepo, loginAdmin, loginDemo, loginSocio } from '../lib/access';
+import { defaultRepo, loginAdmin, loginAdminReset, loginDemo, loginSocio } from '../lib/access';
 import { WrongPasswordError } from '../shared/crypto.ts';
 import { NEW_TOKEN_URL } from '../shared/github.ts';
 
@@ -19,6 +19,10 @@ export function LoginPage({ online }: { online: boolean }) {
   const [token, setToken] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
   const [repo, setRepo] = useState(defaultRepo());
+  const [reset, setReset] = useState(false);
+  const [newPw, setNewPw] = useState('');
+  const [newPw2, setNewPw2] = useState('');
+  const [adminWrongPw, setAdminWrongPw] = useState(false);
 
   const run = async (kind: Exclude<Busy, null>, fn: () => Promise<unknown>) => {
     setBusy(kind);
@@ -27,6 +31,7 @@ export function LoginPage({ online }: { online: boolean }) {
       await fn();
     } catch (e) {
       setError(errorText(e));
+      if (kind === 'admin' && e instanceof WrongPasswordError) setAdminWrongPw(true);
       setBusy(null);
     }
   };
@@ -123,9 +128,41 @@ export function LoginPage({ online }: { online: boolean }) {
               onInput={(e) => setRepo((e.target as HTMLInputElement).value)}
             />
           </label>
-          <button class="btn btn-primary btn-block" type="submit" disabled={!token || !adminPassword || !!busy || !online}>
-            {busy === 'admin' ? 'Verifica…' : 'Entra come programmatore'}
-          </button>
+          {!reset && (
+            <button class="btn btn-primary btn-block" type="submit" disabled={!token || !adminPassword || !!busy || !online}>
+              {busy === 'admin' ? 'Verifica…' : 'Entra come programmatore'}
+            </button>
+          )}
+          {!reset && adminWrongPw && (
+            <button type="button" class="link-btn" onClick={() => setReset(true)}>Ho dimenticato la password soci</button>
+          )}
+          {reset && (
+            <div class="reset-box">
+              <p class="notice notice-error small">
+                Le schede riservate già pubblicate non si possono recuperare senza la vecchia password: ripartirai dalle
+                schede demo e dovrai reimportare le altre (backup o file generato dal computer). Alla prima pubblicazione
+                la nuova password varrà per tutti i soci.
+              </p>
+              <label class="field">
+                <span class="small">Nuova password soci (almeno 8 caratteri)</span>
+                <input type="password" autocomplete="new-password" value={newPw} onInput={(e) => setNewPw((e.target as HTMLInputElement).value)} />
+              </label>
+              <label class="field">
+                <span class="small">Ripeti la nuova password</span>
+                <input type="password" autocomplete="new-password" value={newPw2} onInput={(e) => setNewPw2((e.target as HTMLInputElement).value)} />
+              </label>
+              {newPw2 && newPw !== newPw2 && <p class="small notice notice-error">Le due password non coincidono.</p>}
+              <button
+                type="button"
+                class="btn btn-danger btn-block"
+                disabled={!token || newPw.length < 8 || newPw !== newPw2 || !!busy || !online}
+                onClick={() => run('admin', () => loginAdminReset(token, newPw, repo))}
+              >
+                {busy === 'admin' ? 'Verifica…' : 'Imposta la nuova password ed entra'}
+              </button>
+              <button type="button" class="link-btn" onClick={() => setReset(false)}>Annulla</button>
+            </div>
+          )}
         </form>
       )}
     </div>

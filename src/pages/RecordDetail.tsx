@@ -1,6 +1,7 @@
 import { db, deleteRecords } from '../lib/db';
 import { useLiveQuery } from '../lib/live';
 import { navigate } from '../lib/route';
+import { trackDeletion } from '../lib/publisher';
 import { formatDate } from '../lib/format';
 
 export function isUrl(s: string) {
@@ -29,6 +30,7 @@ export function RecordDetail({ id, isAdmin }: { id: string; isAdmin: boolean }) 
       ? '\n\nLa scheda sparirà per tutti alla prossima pubblicazione.'
       : '';
     if (!confirm(`Eliminare «${r.titolo}»?${warn}`)) return;
+    if (r.origine === 'remoto') await trackDeletion(r.id);
     await deleteRecords([r.id]);
     navigate('database');
   };

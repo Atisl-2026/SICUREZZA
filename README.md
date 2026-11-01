@@ -91,7 +91,7 @@ Alla prima apertura l'app mostra la schermata di accesso.
 |---|---|---|
 | **Demo** | *Prova la demo*, senza password | solo le schede segnate come **visibili in demo**; ricerca, niente AI |
 | **Socio** | **password soci** | tutto l'archivio, in sola lettura; ricerca. Le risposte AI solo con la **password AI** (*Impostazioni → Risposte AI*) |
-| **Programmatore** | *Accesso programmatore*: **codice di accesso GitHub** + password soci | tutto, più creare, modificare ed eliminare le schede, scegliere cosa è visibile in demo, chiave Gemini |
+| **Programmatore** | *Accesso programmatore*: **codice di accesso GitHub** + password soci | tutto, più creare, modificare, eliminare e **caricare documenti**, scegliere cosa è visibile in demo, **pubblicare** per tutti, cambiare **password soci** e **password AI**, chiave Gemini |
 
 Come sono protetti i contenuti:
 
@@ -113,7 +113,7 @@ La password soci è unica e condivisa: per escludere un socio si cambia la passw
 4. **Permissions** → *Repository permissions* → **Contents**: *Read and write*.
 5. **Generate token**, copia il codice (inizia con `github_pat_`) e incollalo nell'app.
 
-Il codice resta solo sul telefono del programmatore. Alla scadenza se ne crea uno nuovo allo stesso modo.
+Il codice resta solo sul telefono del programmatore e serve a pubblicare. Alla scadenza se ne crea uno nuovo allo stesso modo.
 
 ### Chiedi
 
@@ -137,13 +137,14 @@ Le ultime domande restano in **Domande recenti** (solo sul dispositivo; si posso
 ### Archivio
 
 Elenco delle schede con filtro per testo e categoria; tocca una scheda per leggerla.
-Il programmatore può anche **creare**, **modificare** ed **eliminare** le schede, scegliere se sono **visibili in demo**,
-**importare** file JSON/CSV ed **esportare il backup**. Le schede modificate sul telefono sono segnate **da pubblicare**.
+Il programmatore può anche **creare**, **modificare**, **eliminare** e **caricare documenti**, scegliere se le schede
+sono **visibili in demo**, **importare** file JSON/CSV, **esportare il backup** e **pubblicare** (vedi sezione 4).
 
 ### Impostazioni
 
 Accesso ed **Esci**, installazione, risposte AI (password AI per i soci; chiave e modello Gemini per il programmatore),
-controllo automatico degli aggiornamenti, spazio occupato e archiviazione persistente.
+password soci e condivisione dell'AI (programmatore), controllo automatico degli aggiornamenti, spazio occupato
+e archiviazione persistente.
 
 ---
 
@@ -245,10 +246,36 @@ Sul telefono del programmatore le schede **modificate e non ancora pubblicate no
 
 ### Dal telefono (programmatore)
 
-Nella scheda **Archivio**: **Nuova scheda**, oppure apri una scheda → **Modifica** / **Elimina**; con l'interruttore
-**Visibile anche nella demo** scegli cosa vede la demo. **Importa JSON/CSV** accetta `db-generato.json`, un backup,
-un elenco JSON di schede o un CSV (separatore `;` o `,`, codifica UTF-8 o quella di Excel, intestazioni come
-`titolo;testo;categoria;tag;fonte;data_aggiornamento;demo`, anche `domanda;risposta`).
+Tutto si fa dalla scheda **Archivio** e dalle **Impostazioni**, senza computer.
+
+1. **Aggiungi o correggi**:
+   - **Nuova scheda**, oppure apri una scheda → **Modifica** / **Elimina**;
+   - **Carica documenti**: scegli uno o più file (Word `.docx`, Excel `.xlsx`, PowerPoint `.pptx`, PDF con testo,
+     HTML, `.txt`, `.md`, `.csv`, `.json`), la categoria e se devono essere **visibili nella demo**. Il testo viene
+     estratto sul telefono con le stesse regole di `build-db`: prima di aggiungerle puoi correggere i titoli ed
+     escludere le schede che non vuoi;
+   - **Importa JSON/CSV** per un backup, un `db-generato.json` o un CSV.
+
+   Le schede cambiate restano **da pubblicare**: le vedi solo tu.
+2. **Pubblica**: il riquadro in cima all'Archivio mostra quante modifiche sono in attesa (nuove, modificate, eliminate).
+   Tocca **Pubblica**: l'app cifra l'archivio e invia `demo.json` e `soci.json` su GitHub in un'unica modifica.
+   In 1–2 minuti il sito si aggiorna e tutti i telefoni ricevono le novità.
+3. **Impostazioni → Password e condivisione**:
+   - **Cambia password soci**: pubblicata subito; ogni socio dovrà inserire la nuova (per escludere qualcuno basta non dirgliela);
+   - **Risposte AI per i soci**: con una **password AI** la tua chiave Gemini viene condivisa, cifrata, con chi la conosce;
+     **Cambia password AI** per toglierla a qualcuno, **Smetti di condividere l'AI** per toglierla a tutti.
+     Se cambi chiave o modello Gemini, la nuova arriva ai soci alla pubblicazione successiva.
+
+Sicurezza della pubblicazione:
+
+- se nel frattempo su GitHub è comparsa una versione più recente (per esempio pubblicata da un altro tuo telefono),
+  l'app **non sovrascrive** nulla e ti chiede prima di aggiornare: le tue modifiche non vanno perse;
+- se il codice GitHub è scaduto, l'app lo dice: creane uno nuovo (sezione 3), esci e rientra.
+
+**Password soci dimenticata**: nell'accesso programmatore, dopo una password errata compare
+**Ho dimenticato la password soci**. Con il codice GitHub imposti una nuova password; le schede riservate pubblicate
+con la vecchia non sono recuperabili (sono cifrate): ripartirai dalle schede demo e reimporterai le altre
+da un backup o da `db-generato.json`. Alla prima pubblicazione la nuova password vale per tutti.
 
 ---
 
@@ -361,7 +388,8 @@ src/
     types.ts       schema delle schede
     crypto.ts      cifratura con password (PBKDF2 + AES-GCM, Web Crypto)
     publish.ts     formato di demo.json e soci.json
-    github.ts      API di GitHub (codice di accesso del programmatore)
+    github.ts      API di GitHub: verifica del codice, lettura e pubblicazione dei file (un commit)
+    extract.ts     estrazione del testo da Word, Excel, PowerPoint, PDF, HTML (computer e telefono)
     normalize.ts   normalizzazione record, date, tag, versioni
     csv.ts         parser CSV e decodifica UTF-8 / Windows-1252
     chunk.ts       suddivisione in blocchi con sovrapposizione

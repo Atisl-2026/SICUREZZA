@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'preact/hooks';
 import { InstallCard } from '../components/InstallCard';
 import { GeminiSettings } from '../components/GeminiSettings';
+import { AdminSecurity } from '../components/AdminSecurity';
 import { getAiEnvelope, lockAi, logout, RUOLO_LABEL, unlockAi, type Accesso } from '../lib/access';
 import { requestPersistence } from '../lib/db';
 import { useLiveQuery } from '../lib/live';
@@ -57,6 +58,7 @@ export function SettingsPage({ online, access }: Props) {
 
       {access.ruolo === 'socio' && <AiUnlock access={access} online={online} />}
       {access.ruolo === 'admin' && <GeminiSettings online={online} />}
+      {access.ruolo === 'admin' && <AdminSecurity access={access} online={online} />}
 
       <div class="card">
         <h3>Aggiornamenti dei contenuti</h3>

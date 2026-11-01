@@ -97,3 +97,54 @@ export async function verifyToken(opts: GitHubOptions): Promise<{ repo: string; 
   }
   return { repo: info.full_name, branch: info.default_branch || 'main' };
 }
+
+/** Contenuto JSON di un file del repository (null se non esiste). Legge da GitHub, non dalla copia di Pages. */
+export async function readRepoJson<T>(opts: GitHubOptions, branch: string, path: string): Promise<T | null> {
+  try {
+    return await githubRequest<T>(
+      `/repos/${opts.repo}/contents/${path}?ref=${encodeURIComponent(branch)}`,
+      opts,
+      { headers: { Accept: 'application/vnd.github.raw+json' } }
+    );
+  } catch (e) {
+    if (e instanceof GitHubError && e.kind === 'repo') return null;
+    throw e;
+  }
+}
+
+export interface RepoFile {
+  path: string;
+  content: string;
+}
+
+/**
+ * Scrive più file in un'unica modifica (commit) sul ramo indicato, con l'API Git di GitHub:
+ * ref → commit → blob → tree → nuovo commit → aggiornamento del ref (senza forzare:
+ * se nel frattempo qualcun altro ha pubblicato, GitHub rifiuta e nulla viene sovrascritto).
+ */
+export async function commitFiles(opts: GitHubOptions, branch: string, files: RepoFile[], message: string): Promise<{ sha: string; url: string }> {
+  const r = `/repos/${opts.repo}/git`;
+  const ref = await githubRequest<{ object: { sha: string } }>(`${r}/ref/heads/${encodeURIComponent(branch)}`, opts);
+  const parent = await githubRequest<{ tree: { sha: string } }>(`${r}/commits/${ref.object.sha}`, opts);
+  const tree = [];
+  for (const f of files) {
+    const blob = await githubRequest<{ sha: string }>(`${r}/blobs`, opts, {
+      method: 'POST',
+      body: JSON.stringify({ content: f.content, encoding: 'utf-8' })
+    });
+    tree.push({ path: f.path, mode: '100644', type: 'blob', sha: blob.sha });
+  }
+  const newTree = await githubRequest<{ sha: string }>(`${r}/trees`, opts, {
+    method: 'POST',
+    body: JSON.stringify({ base_tree: parent.tree.sha, tree })
+  });
+  const commit = await githubRequest<{ sha: string; html_url: string }>(`${r}/commits`, opts, {
+    method: 'POST',
+    body: JSON.stringify({ message, tree: newTree.sha, parents: [ref.object.sha] })
+  });
+  await githubRequest(`${r}/refs/heads/${encodeURIComponent(branch)}`, opts, {
+    method: 'PATCH',
+    body: JSON.stringify({ sha: commit.sha, force: false })
+  });
+  return { sha: commit.sha, url: commit.html_url };
+}
