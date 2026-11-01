@@ -1,0 +1,81 @@
+# Test, build e pubblicazione su GitHub Pages (gratuito).
+# - push su main  → test + build + deploy
+# - pull request  → solo test + build (nessuna pubblicazione)
+# - manuale       → scheda Actions → "Deploy su GitHub Pages" → Run workflow
+#
+# Prima volta: Settings → Pages → Build and deployment → Source: "GitHub Actions".
+name: Deploy su GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# un solo deploy alla volta; non interrompe un deploy già in corso
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Scarica il codice
+        uses: actions/checkout@v6
+
+      - name: Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Installa le dipendenze
+        run: npm ci
+
+      - name: Test
+        run: npm test
+
+      - name: Percorso base del sito
+        # https://<utente>.github.io/<repository>/  → BASE_PATH=/<repository>/
+        # repository "<utente>.github.io"             → BASE_PATH=/
+        run: |
+          REPO="${{ github.event.repository.name }}"
+          if [[ "$REPO" == *.github.io ]]; then BASE="/"; else BASE="/$REPO/"; fi
+          echo "BASE_PATH=$BASE" >> "$GITHUB_ENV"
+          echo "Percorso base: $BASE"
+
+      - name: Build
+        run: npm run build
+
+      - name: Controlla il database pubblicato
+        run: |
+          test -f dist/data/db.json || { echo "::error::Manca data/db.json: esegui 'npm run build-db' e fai commit del file."; exit 1; }
+          node -e "const d=require('./dist/data/db.json'); if(!d.versione||!Array.isArray(d.records)) throw new Error('db.json non valido'); console.log('db.json: versione', d.versione, '-', d.records.length, 'record')"
+
+      - name: Configura GitHub Pages
+        if: github.event_name != 'pull_request'
+        uses: actions/configure-pages@v5
+
+      - name: Carica il sito
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: dist
+
+  deploy:
+    if: github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Pubblica
+        id: deployment
+        uses: actions/deploy-pages@v4

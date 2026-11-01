@@ -1,7 +1,7 @@
 {
   "name": "consulta",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.0.0",
   "type": "module",
   "description": "PWA offline per consultare un database di contenuti con l'aiuto di Gemini",
   "scripts": {
@@ -35,6 +35,6 @@
     "workbox-window": "^7.4.0"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22.18"
   }
 }

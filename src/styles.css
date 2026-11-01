@@ -83,6 +83,7 @@ h3 { font-size: 1.05rem; }
 
 /* ===== Layout ===== */
 .app {
+  min-height: 100vh;
   min-height: 100dvh;
   display: flex;
   flex-direction: column;
