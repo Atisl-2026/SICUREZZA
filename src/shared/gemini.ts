@@ -21,6 +21,8 @@ export interface ContextBlock {
   articolo?: string;
   /** altri articoli/allegati che iniziano dentro il brano */
   articoliNelBrano?: string[];
+  /** pagina del PDF in cui si trova il brano */
+  pagina?: number;
 }
 
 export const SYSTEM_DB = `Sei l'assistente di un archivio interno di documenti (normativa, procedure, schede tecniche, FAQ).
@@ -47,7 +49,8 @@ export function formatContext(blocks: ContextBlock[]): string {
         b.fonte && `fonte: ${b.fonte}`,
         b.data_aggiornamento && `aggiornato: ${b.data_aggiornamento}`,
         b.articolo && `articolo: ${b.articolo}`,
-        b.articoliNelBrano?.length && `nel brano iniziano anche: ${b.articoliNelBrano.join('; ')}`
+        b.articoliNelBrano?.length && `nel brano iniziano anche: ${b.articoliNelBrano.join('; ')}`,
+        b.pagina && `pagina del PDF: ${b.pagina}`
       ].filter(Boolean).join(' | ');
       return `[BLOCCO ${i + 1}] ${meta}\n${b.testo.trim()}`;
     })

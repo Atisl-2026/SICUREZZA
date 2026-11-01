@@ -4,7 +4,7 @@ import { navigate } from '../lib/route';
 import { trackDeletion } from '../lib/publisher';
 import { formatDate } from '../lib/format';
 import { articleHref, sectionsFor } from '../lib/articles';
-import { headingText, onlineArticleUrl, onlineDocumentUrl, sectionAt } from '../shared/articles.ts';
+import { headingText, onlineArticleUrl, onlineDocumentUrl, pageAt, sectionAt } from '../shared/articles.ts';
 import { highlight } from '../shared/search.ts';
 import { Highlighted } from '../components/Highlighted';
 import type { StoredRecord } from '../shared/types.ts';
@@ -104,7 +104,9 @@ function ArticleView({ r, pos, q }: { r: StoredRecord; pos: number; q?: string }
       <h2 class="record-title"><span class="art-hl">{s ? headingText(s) : 'Documento'}</span></h2>
       <p class="small muted">
         {count > 0 && <>Parola cercata evidenziata {count} {count === 1 ? 'volta' : 'volte'} in questo articolo · </>}
-        posizione nel documento: {Math.round((from / Math.max(1, r.testo.length)) * 100)}%
+        {r.pagine?.length
+          ? <>pag. {pageAt(r.pagine, from)}{pageAt(r.pagine, Math.max(from, to - 1)) !== pageAt(r.pagine, from) ? `–${pageAt(r.pagine, to - 1)}` : ''} del PDF</>
+          : <>posizione nel documento: {Math.round((from / Math.max(1, r.testo.length)) * 100)}%</>}
       </p>
       {online && (
         <p><a class="btn" href={online} target="_blank" rel="noopener noreferrer">Testo ufficiale online (Normattiva) ↗</a></p>

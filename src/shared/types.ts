@@ -13,6 +13,11 @@ export interface DbRecord {
   data_aggiornamento: string;
   /** true se la scheda è visibile anche nell'accesso demo (pubblicata in chiaro). */
   demo?: boolean;
+  /**
+   * Solo per i documenti ricavati da un PDF: posizione nel testo in cui inizia ogni pagina
+   * (pagine[0] = pagina 1). Serve a indicare «pag. N» accanto ai passaggi trovati.
+   */
+  pagine?: number[];
 }
 
 /** Provenienza del record nel database locale. */

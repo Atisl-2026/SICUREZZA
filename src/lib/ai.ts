@@ -3,7 +3,7 @@ import {
 } from '../shared/gemini.ts';
 import { runAi } from './router';
 import type { LocalResult } from './search';
-import { articlesOf } from './articles';
+import { articlesOf, passagePage } from './articles';
 import type { Settings } from './settings';
 import { withModelFallback } from './model';
 
@@ -18,6 +18,7 @@ export { articlesOf } from './articles';
 export function toBlocks(results: LocalResult[]): ContextBlock[] {
   return results.map((r) => {
     const a = articlesOf(r);
+    const page = passagePage(r);
     return {
       recordId: r.record.id,
       titolo: r.record.titolo,
@@ -26,7 +27,8 @@ export function toBlocks(results: LocalResult[]): ContextBlock[] {
       data_aggiornamento: r.record.data_aggiornamento,
       testo: r.chunk.testo,
       ...(a.inizio ? { articolo: a.inizio } : {}),
-      ...(a.nelBrano.length ? { articoliNelBrano: a.nelBrano } : {})
+      ...(a.nelBrano.length ? { articoliNelBrano: a.nelBrano } : {}),
+      ...(page ? { pagina: page } : {})
     };
   });
 }

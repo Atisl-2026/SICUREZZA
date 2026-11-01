@@ -1,7 +1,7 @@
 // Articoli dei documenti trovati: a quale articolo appartiene ogni parola trovata, collegamenti
 // all'articolo dentro l'app (documento trasmesso) e al testo ufficiale online.
 import {
-  articlesForChunk, chunkStart, inMainArticles, onlineArticleUrl, sectionAt, sectionsOf, type ChunkArticles, type Section
+  articlesForChunk, chunkStart, inMainArticles, onlineArticleUrl, pageAt, sectionAt, sectionsOf, type ChunkArticles, type Section
 } from '../shared/articles.ts';
 import { matchRanges } from '../shared/search.ts';
 import type { StoredRecord } from '../shared/types.ts';
@@ -24,6 +24,12 @@ export function sectionsFor(r: Pick<StoredRecord, 'id' | 'testo' | 'salvato_il'>
 /** Articolo/allegato in cui inizia il brano e quelli che contiene (testo per l'AI). */
 export function articlesOf(r: LocalResult): ChunkArticles {
   return articlesForChunk(r.record.testo, r.chunk.testo, sectionsFor(r.record));
+}
+
+/** Pagina del PDF in cui inizia il passaggio («pag. 345»), se il documento è stato caricato con le pagine. */
+export function passagePage(r: LocalResult): number | undefined {
+  if (!r.record.pagine?.length) return undefined;
+  return pageAt(r.record.pagine, chunkStart(r.record.testo, r.chunk.testo));
 }
 
 /** Indirizzo dell'articolo dentro l'app, con le parole cercate da evidenziare. */

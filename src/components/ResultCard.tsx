@@ -4,7 +4,7 @@ import type { LocalResult } from '../lib/search';
 import { highlight, snippet } from '../shared/search.ts';
 import { formatDate } from '../lib/format';
 import { Highlighted } from './Highlighted';
-import { passageInfo } from '../lib/articles';
+import { passageInfo, passagePage } from '../lib/articles';
 import { ArticleBadges } from './ArticleBadges';
 
 const isUrl = (s: string) => /^https?:\/\//i.test(s.trim());
@@ -13,6 +13,7 @@ const isUrl = (s: string) => /^https?:\/\//i.test(s.trim());
 export function ResultCard({ r, index }: { r: LocalResult; index: number | string }) {
   const [open, setOpen] = useState(false);
   const info = passageInfo(r);
+  const page = passagePage(r);
   const short = snippet(r.chunk.testo, r.terms, 320, r.phrases, info.headRanges);
   const truncated = short.some((s) => s.text === '… ' || s.text === ' …');
 
@@ -24,7 +25,7 @@ export function ResultCard({ r, index }: { r: LocalResult; index: number | strin
         <div class="result-meta">
           <span class="chip">{r.record.categoria}</span>
           {r.record.data_aggiornamento && <span>{formatDate(r.record.data_aggiornamento)}</span>}
-          {r.chunk.n > 0 && <span>parte {r.chunk.n + 1}</span>}
+          {page != null && <span class="page-ref" title="Pagina del documento PDF">pag. {page}</span>}
         </div>
         <ArticleBadges r={r} />
       </header>

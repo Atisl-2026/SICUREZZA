@@ -74,6 +74,8 @@ export function RecordForm({ id }: { id?: string }) {
       fonte: draft.fonte.trim(),
       data_aggiornamento: draft.data_aggiornamento || today(),
       ...(draft.demo ? { demo: true } : {}),
+      // le pagine del PDF restano valide solo se il testo non è stato modificato
+      ...(original?.pagine && original.testo === testo ? { pagine: original.pagine } : {}),
       origine: original?.origine ?? 'locale',
       ...(original?.origine === 'remoto' ? { modificato: true } : {}),
       salvato_il: Date.now()

@@ -1,13 +1,14 @@
 import { GeminiError, type GeminiAnswer } from '../shared/gemini.ts';
 import { runAi, type Fornitore } from './router';
 import {
-  buildAnalysisRequest, buildDescribeRequest, findingsOf, parseDescription, photoSearchQuery,
-  type PhotoDescription, type PhotoImage
+  buildAnalysisRequest, buildDescribeRequest, findingsOf, parseDescription, photoContext, photoSearchQuery,
+  type PhotoContext, type PhotoDescription, type PhotoImage
 } from '../shared/vision.ts';
 import { toBlocks } from './ai';
-import { passageInfo } from './articles';
+import { passageInfo, sectionsFor } from './articles';
+import { headingText, inMainArticles, mainArticles } from '../shared/articles.ts';
 import { searchLocal, type LocalResult } from './search';
-import { expandSynonyms } from '../shared/search.ts';
+import { containsPhrase, containsWordForm, expandSynonyms, normalizeForMatch } from '../shared/search.ts';
 import type { Settings } from './settings';
 
 export const MAX_PHOTOS = 3;
@@ -112,7 +113,7 @@ export interface FindingRefs {
   results: LocalResult[];
 }
 
-const MAX_BLOCKS = 12;
+const MAX_BLOCKS = 14;
 
 /** Toglie le pagine d'indice dei PDF (molte intestazioni in un solo brano), se resta altro. */
 function notIndex(list: LocalResult[]): LocalResult[] {
@@ -120,21 +121,53 @@ function notIndex(list: LocalResult[]): LocalResult[] {
   return ok.length ? ok : list;
 }
 
+/** Il brano riguarda il lavoro della foto? (testo, rubrica dell'articolo o titolo del documento) */
+function inContext(r: LocalResult, ctx: PhotoContext): boolean {
+  if (!ctx.termini.length) return true;
+  const heads = passageInfo(r).articoli.map((a) => headingText(a.section)).join(' ');
+  const text = `${r.record.titolo} ${heads} ${r.chunk.testo}`;
+  const norm = normalizeForMatch(text);
+  return ctx.termini.some((t) => (t.includes(' ') ? containsPhrase(norm, t) : containsWordForm(text, t)));
+}
+
+/** Prima gli articoli del provvedimento principale (e i suoi allegati), poi i decreti riportati in appendice. */
+function mainFirst(list: LocalResult[]): LocalResult[] {
+  const rank = (r: LocalResult) => {
+    const top = passageInfo(r).articoli[0]?.section;
+    if (!top || !top.label.startsWith('Art.')) return 0;
+    return mainArticles(sectionsFor(r.record)) && !inMainArticles(top, sectionsFor(r.record)) ? 1 : 0;
+  };
+  return list.map((r, i) => ({ r, i, k: rank(r) })).sort((a, b) => a.k - b.k || a.i - b.i).map((x) => x.r);
+}
+
+/** Risultati pertinenti alla foto: niente pagine d'indice, niente brani fuori tema (se resta altro), testo unico prima. */
+function pertinent(list: LocalResult[], ctx: PhotoContext): LocalResult[] {
+  const clean = notIndex(list);
+  const inCtx = clean.filter((r) => inContext(r, ctx));
+  return mainFirst(inCtx.length ? inCtx : ctx.termini.length ? [] : clean);
+}
+
 /**
- * Brani per l'analisi: ogni criticità del primo esame si cerca da sola nell'archivio
- * («parapetto mancante sul ponteggio» → Art. 126), più una ricerca generale sulla foto.
- * I risultati si alternano (il primo di ogni criticità, poi il secondo…) fino a 12 brani.
+ * Brani per l'analisi: ricerche di base per il tipo di lavoro (es. ponteggi → Art. 112, 122),
+ * poi ogni criticità del primo esame cercata da sola («parapetto mancante sul ponteggio» → Art. 126),
+ * più una ricerca generale. Solo brani che riguardano il lavoro della foto (niente parapetti delle
+ * navi per una foto di cantiere). I risultati si alternano fino a 14 brani.
  */
 export async function photoRetrieval(desc: PhotoDescription, note: string): Promise<{ query: string; results: LocalResult[] }> {
+  const ctx = photoContext(desc, note);
   const crit = (desc.criticita ?? []).filter((c) => c.trim());
   const general = photoSearchQuery(desc, note);
-  const queries = [...crit, general].filter((q) => q.trim());
+  const queries: { q: string; n: number }[] = [
+    ...crit.map((q) => ({ q, n: 3 })),
+    ...ctx.ricerche.map((q) => ({ q, n: 2 })),
+    ...(general.trim() ? [{ q: general, n: 3 }] : [])
+  ];
   if (!queries.length) return { query: '', results: [] };
-  const lists = await Promise.all(queries.map(async (q, i) =>
-    notIndex(await searchLocal(expandSynonyms(q), { limit: i < crit.length ? 5 : 8, maxPerRecord: 4 })).slice(0, i < crit.length ? 3 : 6)));
+  const lists = await Promise.all(queries.map(async ({ q, n }) =>
+    pertinent(await searchLocal(expandSynonyms(q), { limit: 10, maxPerRecord: 5 }), ctx).slice(0, n)));
   const out: LocalResult[] = [];
   const seen = new Set<string>();
-  for (let k = 0; k < 6 && out.length < MAX_BLOCKS; k++) {
+  for (let k = 0; k < 3 && out.length < MAX_BLOCKS; k++) {
     for (const list of lists) {
       const r = list[k];
       if (!r || seen.has(r.chunkId)) continue;
@@ -147,11 +180,11 @@ export async function photoRetrieval(desc: PhotoDescription, note: string): Prom
 }
 
 /** Per le criticità senza riferimento: gli articoli dell'archivio che le riguardano (ricerca locale, nessuna AI). */
-export async function suggestReferences(answer: string): Promise<FindingRefs[]> {
+export async function suggestReferences(answer: string, ctx: PhotoContext = { termini: [], ricerche: [] }): Promise<FindingRefs[]> {
   const out: FindingRefs[] = [];
   for (const f of findingsOf(answer).filter((x) => x.senzaRiferimento)) {
     // prima il solo titolo (più preciso), poi titolo e descrizione
-    const search = async (q: string) => notIndex(await searchLocal(expandSynonyms(q), { limit: 6, maxPerRecord: 3 }))
+    const search = async (q: string) => pertinent(await searchLocal(expandSynonyms(q), { limit: 8, maxPerRecord: 3 }), ctx)
       .filter((r) => passageInfo(r).articoli.some((a) => a.conParola));
     const byTitle = await search(f.titolo);
     // un risultato per articolo (lo stesso articolo può comparire in più brani)
@@ -228,7 +261,7 @@ export async function analyzePhotos(
     onText: (t) => onText(t, results)
   });
   // criticità che l'AI non ha collegato a una norma: l'app cerca da sola gli articoli che le riguardano
-  const suggerimenti = await suggestReferences(answer.text).catch(() => []);
+  const suggerimenti = await suggestReferences(answer.text, photoContext(description, note)).catch(() => []);
   return { description, query, results, answer, ...(suggerimenti.length ? { suggerimenti } : {}) };
 }
 

@@ -48,7 +48,7 @@ Analizzi le immagini di un luogo di lavoro confrontandole con i BRANI DELL'ARCHI
 Regole obbligatorie:
 1. Rispondi in italiano.
 2. Elenca solo le POSSIBILI non conformità che si vedono davvero nelle immagini. Non inventare elementi non visibili.
-3. Per ogni non conformità indica il RIFERIMENTO PRECISO: articolo (o allegato e punto) e comma, presi dal campo "articolo" del brano o dalle intestazioni "Art." / "Allegato" e dai numeri dei commi nel testo del brano; poi il titolo del documento; poi l'id del record tra parentesi quadre, esattamente come scritto nel brano. Esempio: *Riferimento*: Art. 126, comma 1 – «D.Lgs. 81/2008 – Titolo IV» [normativa-dlgs-81-titolo-iv]. Non citare id che non compaiono nei brani.
+3. Per ogni non conformità indica il RIFERIMENTO PRECISO: articolo (o allegato e punto) e comma, presi dal campo "articolo" del brano o dalle intestazioni "Art." / "Allegato" e dai numeri dei commi nel testo del brano; poi il titolo del documento; poi l'id del record tra parentesi quadre, esattamente come scritto nel brano. Esempio: *Riferimento*: Art. 126, comma 1 – «D.Lgs. 81/2008 – Titolo IV», pag. 345 [normativa-dlgs-81-titolo-iv] (la pagina solo se il brano riporta «pagina del PDF»). Non citare id che non compaiono nei brani.
 4. I brani possono usare parole diverse da quelle che useresti tu (es. «deposito di materiali sulle impalcature» per i materiali sul ponteggio, «parasassi» per la mantovana, «opere provvisionali» per i ponteggi): leggili tutti e cita il requisito se il contenuto corrisponde. Se il brano pertinente non riporta il numero dell'articolo, scrivi il titolo del documento e l'id, aggiungendo "(articolo non indicato nel documento)". Se nessun brano contiene il requisito scrivi "Riferimento: non presente nell'archivio".
 5. NON citare articoli, commi, allegati o norme che non compaiono nei brani: niente riferimenti a memoria.
 6. Distingui ciò che è certo da ciò che è dubbio ("sembra", "non si vede chiaramente"). Se le immagini non permettono una valutazione, dillo.
@@ -177,4 +177,76 @@ export function findingsOf(answer: string): Finding[] {
       senzaRiferimento: /non presente nell.archivio/i.test(rif) || (!!rif && !/\[[^\]]+\]/.test(rif))
     };
   });
+}
+
+// ============================================================ contesto della foto
+
+interface Contesto {
+  /** riconosce il tipo di lavoro dalla descrizione */
+  match: RegExp;
+  /** parole che un brano pertinente deve contenere (per scartare quelli fuori tema) */
+  termini: string[];
+  /** ricerche di base sempre utili per questo lavoro (articoli generali) */
+  ricerche: string[];
+  /** contesto generico: le sue parole non bastano a rendere pertinente un brano se c'è un contesto specifico */
+  generico?: boolean;
+}
+
+const CONTESTI: Contesto[] = [
+  {
+    match: /ponteg|impalcat|opere provvisional|trabattell|ponte su ruote/i,
+    termini: ['ponteggio', 'impalcato', 'impalcatura', 'ponte di servizio', 'ponti di servizio', 'opere provvisionali', 'opera provvisionale', 'andatoia', 'passerella', 'trabattello', 'ponte su ruote', 'montante', 'parasassi', 'sottoponte'],
+    ricerche: ['ponteggi ed opere provvisionali', 'idoneità delle opere provvisionali', 'montaggio e smontaggio delle opere provvisionali', 'ponteggi fissi autorizzazione progetto', 'parapetti', 'deposito di materiali sulle impalcature']
+  },
+  {
+    match: /scav|trincea|sbancament|splateament/i,
+    termini: ['scavo', 'trincea', 'sbancamento', 'splateamento', 'pozzo', 'cunicolo', 'armatura', 'parete dello scavo'],
+    ricerche: ['splateamento e sbancamento', 'scavo di pozzi e trincee', 'pozzi scavi e cunicoli', 'deposito di materiali in prossimità degli scavi']
+  },
+  {
+    match: /copertur|tetto|lucernar|falda/i,
+    termini: ['copertura', 'tetto', 'lucernario', 'lavori in quota', 'caduta dall\'alto'],
+    ricerche: ['lavori su coperture', 'lavori in quota', 'protezione contro le cadute dall\'alto']
+  },
+  { match: /demoliz/i, termini: ['demolizione'], ricerche: ['demolizioni', 'sbarramento della zona di demolizione'] },
+  { match: /\bscal[ae]\b/i, termini: ['scala', 'scale'], ricerche: ['scale portatili', 'scale in muratura'] },
+  {
+    match: /elettric|quadro|cavi\b|cavo\b/i,
+    termini: ['impianto elettrico', 'elettrico', 'quadro', 'cavo', 'tensione'],
+    ricerche: ['impianti e apparecchiature elettriche', 'lavori sotto tensione']
+  },
+  {
+    match: /\bgru\b|sollevament|carico sospeso|imbracat/i,
+    termini: ['gru', 'sollevamento', 'carico sospeso', 'imbracatura'],
+    ricerche: ['apparecchi di sollevamento', 'verifiche periodiche delle attrezzature di lavoro']
+  },
+  {
+    match: /macchin|attrezzatur|betoniera|sega|flessibile/i,
+    termini: ['macchina', 'attrezzatura di lavoro', 'attrezzature di lavoro', 'organi lavoratori', 'protezione'],
+    ricerche: ['uso delle attrezzature di lavoro', 'requisiti di sicurezza delle attrezzature di lavoro']
+  },
+  {
+    match: /cantier|edil|ristruttur|costruzion|muratur/i,
+    termini: ['cantiere', 'cantieri', 'lavori edili', 'costruzione', 'edile'],
+    ricerche: ['cantieri temporanei o mobili', 'viabilità nei cantieri', 'recinzione del cantiere'],
+    generico: true
+  }
+];
+
+export interface PhotoContext {
+  /** parole che rendono pertinente un brano (vuoto = nessun filtro) */
+  termini: string[];
+  /** ricerche di base per i tipi di lavoro riconosciuti */
+  ricerche: string[];
+}
+
+/** Tipo di lavoro della foto: parole per scartare i brani fuori tema e ricerche di base. */
+export function photoContext(desc: PhotoDescription, note: string): PhotoContext {
+  const src = [note, desc.tipo_opera, desc.descrizione, ...desc.elementi, ...desc.parole_chiave].join(' ');
+  const found = CONTESTI.filter((c) => c.match.test(src));
+  const specifici = found.filter((c) => !c.generico);
+  return {
+    termini: [...new Set((specifici.length ? specifici : found).flatMap((c) => c.termini))],
+    ricerche: [...new Set(found.flatMap((c) => c.ricerche))]
+  };
 }

@@ -249,3 +249,16 @@ export function refLabel(m: RegExpMatchArray): string {
   if (m[3]) return `Allegato ${m[3].toUpperCase()}`;
   return `Art. ${m[1]}${m[2] ? `-${m[2].toLowerCase()}` : ''}`;
 }
+
+/** Numero di pagina del PDF (da 1) in cui si trova la posizione, se le pagine sono note. */
+export function pageAt(pagine: number[] | undefined, pos: number): number | undefined {
+  if (!pagine?.length || pos < 0) return undefined;
+  let lo = 0;
+  let hi = pagine.length - 1;
+  let found = 0;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    if (pagine[mid] <= pos) { found = mid; lo = mid + 1; } else hi = mid - 1;
+  }
+  return found + 1;
+}

@@ -80,7 +80,7 @@ export function parseTags(v: unknown): string[] {
 }
 
 /** Nomi di colonna/proprietà alternativi accettati per ogni campo (confronto senza accenti e maiuscole). */
-export const FIELD_ALIASES: Record<keyof DbRecord, string[]> = {
+export const FIELD_ALIASES: Record<Exclude<keyof DbRecord, 'pagine'>, string[]> = {
   id: ['id', 'codice', 'cod', 'identificativo', 'code'],
   titolo: ['titolo', 'title', 'domanda', 'question', 'oggetto', 'nome', 'name'],
   testo: ['testo', 'text', 'risposta', 'answer', 'contenuto', 'content', 'descrizione', 'description', 'corpo', 'body'],
@@ -129,11 +129,13 @@ export function normalizeRecord(raw: unknown, defaults: Partial<DbRecord> = {}):
   const extra: string[] = [];
   let origine: Origine | undefined;
   let modificato: boolean | undefined;
+  let pagine: number[] | undefined;
 
   for (const [key, value] of Object.entries(src)) {
     if (key === 'origine' && (value === 'remoto' || value === 'locale')) { origine = value; continue; }
     if (key === 'modificato') { modificato = value === true; continue; }
     if (key === 'salvato_il') continue;
+    if (key === 'pagine') { if (validPages(value)) pagine = value; continue; }
     const field = fieldForKey(key);
     if (field && f[field] == null) f[field] = value;
     else if (value != null && String(value).trim() !== '' && typeof value !== 'object') {
@@ -159,6 +161,7 @@ export function normalizeRecord(raw: unknown, defaults: Partial<DbRecord> = {}):
     data_aggiornamento: parseDate(f.data_aggiornamento) || defaults.data_aggiornamento || ''
   };
   if (f.demo != null ? parseBool(f.demo) : defaults.demo) record.demo = true;
+  if (pagine && pagine.every((p) => p <= testo.length)) record.pagine = pagine;
   return { record, origine, modificato };
 }
 
@@ -221,12 +224,22 @@ export function sameContent(a: DbRecord, b: DbRecord): boolean {
     a.data_aggiornamento === b.data_aggiornamento &&
     !!a.demo === !!b.demo &&
     a.tag.length === b.tag.length &&
-    a.tag.every((t, i) => t === b.tag[i])
+    a.tag.every((t, i) => t === b.tag[i]) &&
+    (a.pagine ?? []).join(',') === (b.pagine ?? []).join(',')
   );
 }
 
 /** Estrae solo i campi dello schema (senza metadati locali). */
 export function pickSchema(r: DbRecord): DbRecord {
   const { id, titolo, testo, categoria, tag, fonte, data_aggiornamento } = r;
-  return { id, titolo, testo, categoria, tag: [...tag], fonte, data_aggiornamento, ...(r.demo ? { demo: true } : {}) };
+  return {
+    id, titolo, testo, categoria, tag: [...tag], fonte, data_aggiornamento,
+    ...(r.demo ? { demo: true } : {}),
+    ...(r.pagine?.length ? { pagine: [...r.pagine] } : {})
+  };
+}
+
+/** Elenco di posizioni crescenti (inizio di ogni pagina). */
+function validPages(v: unknown): v is number[] {
+  return Array.isArray(v) && v.length > 0 && v.every((x, i) => Number.isInteger(x) && x >= 0 && (i === 0 || x >= v[i - 1]));
 }

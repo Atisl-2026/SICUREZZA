@@ -66,6 +66,8 @@ export interface Doc {
   title: string;
   text: string;
   id?: string;
+  /** PDF: posizione nel testo in cui inizia ogni pagina */
+  pagine?: number[];
 }
 
 export interface Sheet {
@@ -284,6 +286,31 @@ export function readText(bytes: Uint8Array, ext: string): Doc {
   return { title: goodTitle(m?.[1] && stripMarkdown(m[1])), text };
 }
 
+/**
+ * Dove inizia ogni pagina nel testo ricomposto: l'inizio di ogni pagina si cerca, in ordine,
+ * ignorando spazi, a capo e trattini (che la ricomposizione modifica).
+ */
+export function pageOffsets(text: string, pages: string[]): number[] {
+  const out: number[] = [];
+  let pos = 0;
+  for (let i = 0; i < pages.length; i++) {
+    const key = pages[i].replace(/[\s-]+/g, '').slice(0, 30);
+    let found = -1;
+    if (key.length >= 4) {
+      const re = new RegExp(key.split('').map((c) => c.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('[\\s-]*'), 'g');
+      re.lastIndex = pos;
+      const windowEnd = pos + (pages[i - 1]?.length ?? 0) * 2 + 4000;
+      const m = re.exec(text);
+      if (m && m.index <= windowEnd) found = m.index;
+    }
+    // pagina vuota o non ritrovata: subito dopo la precedente
+    const at = found >= 0 ? found : Math.min(text.length, i === 0 ? 0 : out[i - 1] + Math.max(1, pages[i - 1]?.trim().length ?? 1));
+    out.push(Math.max(at, out[i - 1] ?? 0));
+    pos = out[i];
+  }
+  return out;
+}
+
 /** Ricompone il testo estratto da un PDF (righe spezzate dall'impaginazione, parole con trattino). */
 export function cleanPdfText(pages: string[]): string {
   return normalizeText(
@@ -385,6 +412,7 @@ function makeRecord(ctx: ExtractContext, doc: Doc, multi: boolean): DbRecord {
     id: (!multi && ctx.override?.id) || doc.id || ctx.fileId,
     titolo: (!multi && ctx.override?.titolo) || doc.title || ctx.fallbackTitle,
     testo: doc.text,
+    ...(doc.pagine?.length ? { pagine: doc.pagine } : {}),
     categoria: d.categoria,
     tag: d.tag,
     fonte: d.fonte,
@@ -530,5 +558,5 @@ export async function readPdfWith(
   if (text.replace(/\s/g, '').length < 20 * totalPages) {
     warn(`poco testo estratto (${text.length} caratteri su ${totalPages} pagine): forse è una scansione senza OCR`);
   }
-  return { title, text };
+  return { title, text, pagine: pageOffsets(text, pages) };
 }

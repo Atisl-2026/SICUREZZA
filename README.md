@@ -245,6 +245,12 @@ negli indici dei PDF («preposto253», «art.18»), vengono trovate.
 documento (es. *D.lgs. 81/08*). Vale anche per le risposte AI. Gli altri argomenti scelti restano interi; togliendo
 la Normativa dagli argomenti la scelta si azzera.
 
+**Numero di pagina**: per i documenti caricati da **PDF** ogni passaggio indica la **pagina del file** («pag. 345»,
+quella da usare con «vai alla pagina» nel lettore PDF; può differire dal numero stampato sul foglio). La pagina arriva
+anche all'AI, che la può citare. I PDF caricati prima di questa funzione non hanno le pagine: **ricaricali una volta**
+(Archivio → Carica documenti, stessa categoria: la scheda viene sostituita; se era visibile in demo rimetti la spunta)
+e poi **Pubblica**.
+
 **Articoli evidenziati e collegati**: su ogni passaggio trovato compare in **verde chiaro** l'articolo in cui c'è la
 parola cercata (es. *Art. 19 – Obblighi del preposto*), anche se il passaggio inizia a metà articolo; la parola cercata è
 in **giallo**. Lo stesso nella risposta dell'AI: i riferimenti «Art. 19, comma 1» sono in verde e **cliccabili**.
@@ -272,7 +278,11 @@ Per il programmatore e i soci con la password AI, nella scheda **Chiedi** c'è *
    - con le copie piccole chiede all'AI, in pochi secondi, che cosa si vede e quali sono le **possibili criticità**
      (es. «parapetto mancante sul ponteggio», «deposito di materiali sull'impalcato»);
    - cerca **ogni criticità separatamente** nell'archivio, con i sinonimi tecnici della normativa (impalcato →
-     impalcature, mantovana → parasassi, casco → elmetto/DPI…), e passa all'AI fino a 12 brani;
+     impalcature, mantovana → parasassi, casco → elmetto/DPI…), più le **ricerche di base del tipo di lavoro**
+     riconosciuto (ponteggi → Art. 112 «Idoneità delle opere provvisionali», Art. 122 «Ponteggi ed opere provvisionali»;
+     scavi, coperture, demolizioni, scale, impianti elettrici, sollevamento, macchine);
+   - tiene solo i brani che riguardano quel lavoro (una foto di ponteggi non riceve i parapetti delle navi o le funi)
+     e mette prima gli articoli del testo principale, poi quelli dei decreti in appendice; fino a 14 brani all'AI;
    - chiede a Gemini di confrontare le foto con i brani trovati: **la risposta compare mentre viene scritta**,
      come nell'app di Gemini, senza aspettare la fine.
 3. La risposta ha sempre quattro parti: **Cosa si vede**, **Possibili non conformità** (con gravità e riferimento
