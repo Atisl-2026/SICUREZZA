@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'preact/hooks';
 import { db, putRecords } from '../lib/db';
-import { useLiveQuery } from '../lib/live';
-import { withStandardTopics } from '../branding';
+import { ensureCategory } from '../lib/categories';
+import { CategoryPicker } from '../components/CategoryPicker';
 import { navigate } from '../lib/route';
 import { parseTags, slugify } from '../shared/normalize.ts';
 import type { StoredRecord } from '../shared/types.ts';
@@ -29,7 +29,6 @@ export function RecordForm({ id }: { id?: string }) {
   const [original, setOriginal] = useState<StoredRecord | undefined>();
   const [errore, setErrore] = useState('');
   const [saving, setSaving] = useState(false);
-  const categorie = useLiveQuery(async () => withStandardTopics((await db.records.orderBy('categoria').uniqueKeys()) as string[]));
 
   useEffect(() => {
     if (!id) return;
@@ -67,7 +66,7 @@ export function RecordForm({ id }: { id?: string }) {
       id: newId,
       titolo,
       testo,
-      categoria: draft.categoria.trim() || 'Generale',
+      categoria: await ensureCategory(draft.categoria),
       tag: parseTags(draft.tag),
       fonte: draft.fonte.trim(),
       data_aggiornamento: draft.data_aggiornamento || today(),
@@ -100,8 +99,7 @@ export function RecordForm({ id }: { id?: string }) {
       <div class="form-row">
         <label>
           Categoria
-          <input list="categorie" value={draft.categoria} onInput={set('categoria')} placeholder="Generale" />
-          <datalist id="categorie">{categorie?.map((c) => <option key={c} value={c} />)}</datalist>
+          <CategoryPicker value={draft.categoria} onChange={(v) => setDraft({ ...draft, categoria: v })} />
         </label>
         <label>
           Data aggiornamento

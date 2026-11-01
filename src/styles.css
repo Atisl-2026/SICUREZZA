@@ -652,3 +652,22 @@ a.link-btn.apk-link { display: inline-flex; align-items: center; justify-content
 }
 .model-item > span:first-child { display: flex; flex-direction: column; min-width: 0; overflow-wrap: anywhere; }
 .model-item.is-current { border-color: var(--primary); border-width: 2px; }
+
+/* ===== Gestione categorie ===== */
+.cat-add .input-row input { min-height: 48px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface); }
+.cat-row { padding: 10px 16px; }
+.cat-main { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.cat-name { display: flex; flex-direction: column; min-width: 0; overflow-wrap: anywhere; }
+.cat-order { display: flex; flex: none; }
+.cat-order .icon-btn { min-width: 44px; min-height: 44px; font-size: 1.2rem; }
+.cat-order .icon-btn:disabled { opacity: 0.3; }
+.cat-actions { margin-top: 6px; }
+.cat-actions .btn { min-height: 40px; padding: 0 14px; font-size: 0.9rem; }
+.cat-edit { margin-top: 10px; padding: 12px; border-radius: 12px; background: var(--surface-2); display: grid; gap: 10px; }
+.cat-edit input, .cat-edit select, .category-picker select, .category-new {
+  width: 100%; min-height: 48px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface);
+}
+.category-picker { display: grid; gap: 8px; }
+.cat-edit .btn-row { justify-content: flex-end; }
+.cat-list { list-style: none; margin: 0 0 14px; padding: 4px 0; }
+.cat-list .cat-row + .cat-row { border-top: 1px solid var(--border); }

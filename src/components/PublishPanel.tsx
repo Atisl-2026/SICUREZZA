@@ -5,9 +5,9 @@ import { GitHubError } from '../shared/github.ts';
 export type PublishState = { tipo: 'ok' | 'errore'; testo: string; link?: string } | null;
 
 /** "1 nuova", "3 nuove", … */
-export function describePending(p: { nuove: number; modificate: number; eliminate: number }): string {
+export function describePending(p: { nuove: number; modificate: number; eliminate: number; categorie?: boolean }): string {
   const f = (n: number, one: string, many: string) => (n ? `${n} ${n === 1 ? one : many}` : '');
-  return [f(p.nuove, 'nuova', 'nuove'), f(p.modificate, 'modificata', 'modificate'), f(p.eliminate, 'eliminata', 'eliminate')]
+  return [f(p.nuove, 'nuova', 'nuove'), f(p.modificate, 'modificata', 'modificate'), f(p.eliminate, 'eliminata', 'eliminate'), p.categorie ? 'elenco categorie' : '']
     .filter(Boolean)
     .join(' · ');
 }

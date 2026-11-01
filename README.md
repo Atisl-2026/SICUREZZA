@@ -352,6 +352,11 @@ Tutto si fa dalla scheda **Archivio** e dalle **Impostazioni**, senza computer.
      **Cambia password AI** per toglierla a qualcuno, **Smetti di condividere l'AI** per toglierla a tutti.
      Se cambi chiave o modello Gemini, la nuova arriva ai soci alla pubblicazione successiva.
 
+**Categorie** (*Archivio → Categorie*): aggiungi, rinomina (tutte le sue schede vengono aggiornate), cambia
+l'ordine con ↑ ↓ o elimina una categoria (se contiene schede scegli dove spostarle). L'elenco viene pubblicato
+con le schede: soci e demo vedono le stesse spunte «Cerca in», nello stesso ordine. Quando carichi un documento o
+crei una scheda la categoria si sceglie dall'elenco, con **＋ Nuova categoria…** per aggiungerne una al volo.
+
 Sicurezza della pubblicazione:
 
 - se nel frattempo su GitHub è comparsa una versione più recente (per esempio pubblicata da un altro tuo telefono),

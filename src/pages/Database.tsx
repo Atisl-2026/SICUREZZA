@@ -10,6 +10,7 @@ import { REMOTE_CHECK_EVENT } from '../components/RemoteUpdate';
 import { RecordDetail } from './RecordDetail';
 import { RecordForm } from './RecordForm';
 import { UploadPage } from './Upload';
+import { CategoriesPage } from './Categories';
 import { PublishPanel } from '../components/PublishPanel';
 
 interface Props {
@@ -25,6 +26,7 @@ export function DatabasePage({ online, isAdmin }: Props) {
   if (isAdmin && sub === 'nuovo') return <RecordForm />;
   if (isAdmin && sub === 'modifica' && id) return <RecordForm id={id} />;
   if (isAdmin && sub === 'carica') return <UploadPage />;
+  if (isAdmin && sub === 'categorie') return <CategoriesPage online={online} />;
   return <DatabaseHome online={online} isAdmin={isAdmin} />;
 }
 
@@ -117,6 +119,7 @@ function DatabaseHome({ online, isAdmin }: Props) {
             {busy ? 'Importazione…' : 'Importa JSON/CSV'}
           </button>
           <button class="btn" onClick={onExport} disabled={!info?.records}>Esporta backup</button>
+          <a class="btn" href="#database/categorie">Categorie</a>
           <button
             class="btn actions-wide"
             disabled={!online}

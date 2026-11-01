@@ -1,7 +1,7 @@
 import { useRef, useState } from 'preact/hooks';
 import { db, putRecords } from '../lib/db';
-import { useLiveQuery } from '../lib/live';
-import { withStandardTopics } from '../branding';
+import { ensureCategory } from '../lib/categories';
+import { CategoryPicker } from '../components/CategoryPicker';
 import { navigate } from '../lib/route';
 import { ACCEPT, extractUpload, type UploadResult } from '../lib/upload';
 import { ensureUniqueIds } from '../shared/normalize.ts';
@@ -24,7 +24,6 @@ export function UploadPage() {
   const [reports, setReports] = useState<UploadResult[]>([]);
   const [saved, setSaved] = useState<number | null>(null);
   const input = useRef<HTMLInputElement>(null);
-  const categorie = useLiveQuery(async () => withStandardTopics((await db.records.orderBy('categoria').uniqueKeys()) as string[]));
 
   const onFiles = async (e: Event) => {
     const el = e.target as HTMLInputElement;
@@ -34,7 +33,9 @@ export function UploadPage() {
     setBusy(true);
     setSaved(null);
     const results: UploadResult[] = [];
-    for (const f of files) results.push(await extractUpload(f, { categoria, demo }));
+    const cat = await ensureCategory(categoria);
+    setCategoria(cat);
+    for (const f of files) results.push(await extractUpload(f, { categoria: cat, demo }));
     const records = results.flatMap((r) => r.records.map((record) => ({ record, file: r.file })));
     ensureUniqueIds(records.map((x) => x.record));
     const existing = await db.records.bulkGet(records.map((x) => x.record.id));
@@ -88,8 +89,7 @@ export function UploadPage() {
       <div class="card">
         <label class="field">
           <span class="small">Categoria</span>
-          <input list="up-categorie" value={categoria} placeholder="Generale" onInput={(e) => setCategoria((e.target as HTMLInputElement).value)} />
-          <datalist id="up-categorie">{categorie?.map((c) => <option key={c} value={c} />)}</datalist>
+          <CategoryPicker value={categoria} onChange={setCategoria} />
         </label>
         <label class="switch">
           <span>

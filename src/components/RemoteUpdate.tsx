@@ -70,7 +70,7 @@ export function RemoteUpdate({ ruolo }: { ruolo: Ruolo }) {
     if (!offer) return;
     setBusy(true);
     try {
-      done(offer.versione, await applyRemote(offer.versione, offer.records, offer.ai));
+      done(offer.versione, await applyRemote(offer.versione, offer.records, offer.ai, offer.categorie));
     } catch (e) {
       setMsg({ testo: `Aggiornamento non riuscito: ${(e as Error).message}`, tipo: 'errore' });
     } finally {

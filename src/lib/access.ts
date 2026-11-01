@@ -6,6 +6,7 @@ import type { DbRecord, StoredRecord } from '../shared/types.ts';
 import { clearAll, db, getMeta, putRecords, setMeta } from './db';
 import { useLiveQuery } from './live';
 import { updateSettings } from './settings';
+import { forgetCategories, receiveCategories } from './categories';
 
 export type Ruolo = 'demo' | 'socio' | 'admin';
 
@@ -130,6 +131,7 @@ export async function refreshAiShare(a: Accesso, env: Envelope | undefined): Pro
 
 export async function loginDemo() {
   const { versione, records } = await fetchDemo();
+  await forgetCategories();
   await replaceRecords(records, versione);
   await setAiEnvelope(undefined);
   await updateSettings({ apiKey: '', webCheck: false });
@@ -142,6 +144,7 @@ export async function loginSocio(password: string) {
   const payload = await openSoci(file, sociKey); // WrongPasswordError se sbagliata
   await replaceRecords(payload.records, file.versione);
   await setAiEnvelope(payload.ai);
+  await receiveCategories(payload.categorie);
   await updateSettings({ apiKey: '', webCheck: false });
   await setAccess({ ruolo: 'socio', sociKey });
 }
@@ -173,6 +176,8 @@ export async function loginAdmin(token: string, password: string, repoInput: str
     const payload = await openSoci(file, sociKey);
     await replaceRecords(payload.records, file.versione);
     await setAiEnvelope(payload.ai);
+    await receiveCategories(payload.categorie);
+  await receiveCategories(payload.categorie);
     await setAccess({ ruolo: 'admin', sociKey, github: { token: token.trim(), repo: fullName, branch } });
     return { primoAccesso: false };
   }
@@ -214,6 +219,7 @@ export async function lockAi() {
 /** Esci: cancella dal dispositivo contenuti, indice, chiavi, cronologia. */
 export async function logout() {
   await clearAll();
+  await forgetCategories();
   await db.meta.bulkDelete([KEY, 'aiEnvelope', 'indice', 'cronologia', 'versione', 'aggiornato_il']);
   await updateSettings({ apiKey: '', webCheck: false });
 }
@@ -229,6 +235,7 @@ export async function loginAdminReset(token: string, newPassword: string, repoIn
   if (!repo) throw new Error('Indica il repository nel formato proprietario/nome.');
   if (newPassword.length < 8) throw new Error('La nuova password soci deve avere almeno 8 caratteri.');
   const { repo: fullName, branch } = await verifyToken({ token, repo });
+  await forgetCategories();
 
   let versione = '';
   try {

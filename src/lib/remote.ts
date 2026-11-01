@@ -6,9 +6,10 @@ import type { Envelope } from '../shared/crypto.ts';
 import type { DbRecord } from '../shared/types.ts';
 import { fetchDemo, fetchSoci, getAccess, NotPublishedError, refreshAiShare, reenterSociPassword } from './access';
 import { db, deleteRecords, getMeta, putRecords, setMeta } from './db';
+import { receiveCategories } from './categories';
 
 export type RemoteCheck =
-  | { stato: 'disponibile'; versione: string; versioneLocale?: string; records: DbRecord[]; ai?: Envelope }
+  | { stato: 'disponibile'; versione: string; versioneLocale?: string; records: DbRecord[]; ai?: Envelope; categorie?: string[] }
   | { stato: 'aggiornato'; versione: string }
   | { stato: 'password-cambiata'; file: SociFile }
   | { stato: 'nessun-accesso' }
@@ -33,7 +34,7 @@ export async function checkRemote(): Promise<RemoteCheck> {
     if (!isNewer(file.versione)) return { stato: 'aggiornato', versione: versioneLocale! };
     if (!keyMatches(a.sociKey, file.cifrato)) return { stato: 'password-cambiata', file };
     const payload = await openSoci(file, a.sociKey!);
-    return { stato: 'disponibile', versione: file.versione, versioneLocale, records: payload.records, ai: payload.ai };
+    return { stato: 'disponibile', versione: file.versione, versioneLocale, records: payload.records, ai: payload.ai, categorie: payload.categorie };
   } catch (e) {
     if (e instanceof NotPublishedError) return { stato: 'errore', messaggio: 'Contenuti non ancora pubblicati.' };
     return { stato: 'errore', messaggio: (e as Error).message };
@@ -47,13 +48,14 @@ export interface ApplyResult {
 }
 
 /** Applica l'aggiornamento (dopo conferma dell'utente). Le modifiche locali del programmatore non vengono toccate. */
-export async function applyRemote(versione: string, records: DbRecord[], ai?: Envelope): Promise<ApplyResult> {
+export async function applyRemote(versione: string, records: DbRecord[], ai?: Envelope, categorie?: string[]): Promise<ApplyResult> {
   const existing = await db.records.toArray();
   const plan = planRemote(existing, records);
   await putRecords(plan.toPut);
   await deleteRecords(plan.toDelete);
   await setMeta('versione', versione);
   await setMeta('aggiornato_il', new Date().toISOString());
+  await receiveCategories(categorie);
   const a = await getAccess();
   const avvisoAi = a && a.ruolo !== 'demo' ? await refreshAiShare(a, ai) : null;
   return { plan, avvisoAi };
@@ -62,5 +64,5 @@ export async function applyRemote(versione: string, records: DbRecord[], ai?: En
 /** Password soci cambiata: con la nuova password si sblocca e si applica l'aggiornamento. */
 export async function applyWithNewPassword(password: string, file: SociFile): Promise<ApplyResult> {
   const payload = await reenterSociPassword(password, file);
-  return applyRemote(file.versione, payload.records, payload.ai);
+  return applyRemote(file.versione, payload.records, payload.ai, payload.categorie);
 }

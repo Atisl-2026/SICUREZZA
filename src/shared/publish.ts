@@ -29,6 +29,8 @@ export interface SociPayload {
   records: DbRecord[];
   /** AiShare cifrato con la password AI (assente se l'AI non è condivisa). */
   ai?: Envelope;
+  /** Elenco ordinato delle categorie (argomenti) gestito dal programmatore. */
+  categorie?: string[];
 }
 
 /** Versione leggibile e ordinabile: 2026.11.01.143005.123 (con i millesimi: due pubblicazioni ravvicinate restano distinte) */
@@ -51,12 +53,17 @@ export interface Publication {
 export async function buildPublication(
   records: DbRecord[],
   sociKey: DerivedKey,
-  opts: { versione?: string; ai?: Envelope } = {}
+  opts: { versione?: string; ai?: Envelope; categorie?: string[] } = {}
 ): Promise<Publication> {
   const versione = opts.versione ?? newVersion();
   const generato = new Date().toISOString();
   const clean = records.map(pickSchema).sort((a, b) => a.id.localeCompare(b.id));
-  const payload: SociPayload = { versione, records: clean, ...(opts.ai ? { ai: opts.ai } : {}) };
+  const payload: SociPayload = {
+    versione,
+    records: clean,
+    ...(opts.ai ? { ai: opts.ai } : {}),
+    ...(opts.categorie?.length ? { categorie: opts.categorie } : {})
+  };
   return {
     demo: { versione, generato, records: clean.filter((r) => r.demo) },
     soci: { formato: 'consulta-soci-1', versione, generato, cifrato: await encryptJson(payload, sociKey) }

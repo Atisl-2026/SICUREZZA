@@ -1,25 +1,11 @@
 import { useEffect, useState } from 'preact/hooks';
-import { ARGOMENTI } from '../branding';
-import { useLiveQuery } from '../lib/live';
-import { categoryCounts } from '../lib/search';
+import { useCategories } from '../lib/categories';
 import { updateSettings, useSettings } from '../lib/settings';
 import { normCategory } from '../shared/search.ts';
 
-/** Argomenti da mostrare: quelli standard (sempre) + quelli presenti nell'archivio, con il numero di schede. */
+/** Argomenti da mostrare: l'elenco del programmatore (o quello standard) + quelli usati dalle schede. */
 function useTopics(): { nome: string; schede: number }[] {
-  const counts = useLiveQuery(categoryCounts);
-  const byNorm = new Map<string, { nome: string; schede: number }>();
-  for (const nome of ARGOMENTI) byNorm.set(normCategory(nome), { nome, schede: 0 });
-  for (const [nome, n] of counts ?? []) {
-    const k = normCategory(nome);
-    const cur = byNorm.get(k);
-    if (cur) cur.schede += n;
-    else byNorm.set(k, { nome, schede: n });
-  }
-  const std = ARGOMENTI.map((a) => byNorm.get(normCategory(a))!);
-  const extra = [...byNorm.values()].filter((t) => !ARGOMENTI.some((a) => normCategory(a) === normCategory(t.nome)))
-    .sort((a, b) => a.nome.localeCompare(b.nome, 'it'));
-  return [...std, ...extra];
+  return useCategories() ?? [];
 }
 
 /** Spunte "Cerca in": argomenti in cui cercare (scelta ricordata sul dispositivo). */

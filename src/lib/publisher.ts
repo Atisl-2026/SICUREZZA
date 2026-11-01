@@ -6,6 +6,7 @@ import {
 } from '../shared/publish.ts';
 import { getAccess, getAiEnvelope, setAccess, setAiEnvelope, type Accesso } from './access';
 import { db, getMeta, setMeta } from './db';
+import { CATEGORIES_DIRTY, getCategoryList } from './categories';
 import { useLiveQuery } from './live';
 import { getSettings } from './settings';
 
@@ -23,16 +24,19 @@ export interface Pending {
   nuove: number;
   modificate: number;
   eliminate: number;
+  /** elenco delle categorie cambiato */
+  categorie: boolean;
   totale: number;
 }
 
 export async function getPending(): Promise<Pending> {
-  const [nuove, modificate, eliminate] = await Promise.all([
+  const [nuove, modificate, eliminate, categorie] = await Promise.all([
     db.records.where('origine').equals('locale').count(),
     db.records.filter((r) => r.origine === 'remoto' && !!r.modificato).count(),
-    getMeta<string[]>(DELETED_KEY, []).then((l) => l.length)
+    getMeta<string[]>(DELETED_KEY, []).then((l) => l.length),
+    getMeta<boolean>(CATEGORIES_DIRTY, false)
   ]);
-  return { nuove, modificate, eliminate, totale: nuove + modificate + eliminate };
+  return { nuove, modificate, eliminate, categorie, totale: nuove + modificate + eliminate + (categorie ? 1 : 0) };
 }
 
 export function usePending(): Pending | undefined {
@@ -110,7 +114,7 @@ export async function publish(opts: PublishOptions = {}): Promise<PublishResult>
 
   // 3. file da pubblicare
   const records = await db.records.toArray();
-  const pub = await buildPublication(records, sociKey, { ai });
+  const pub = await buildPublication(records, sociKey, { ai, categorie: await getCategoryList() });
   const pending = await getPending();
   const message = opts.message ?? describeCommit(pending, opts, records.length);
   const { url } = await commitFiles(gh, a.github.branch, [
@@ -125,6 +129,7 @@ export async function publish(opts: PublishOptions = {}): Promise<PublishResult>
   await setMeta('versione', pub.soci.versione);
   await setMeta('aggiornato_il', new Date().toISOString());
   await setMeta(DELETED_KEY, []);
+  await setMeta(CATEGORIES_DIRTY, false);
   await db.records.toCollection().modify((r) => {
     r.origine = 'remoto';
     delete r.modificato;
@@ -137,6 +142,7 @@ function describeCommit(p: Pending, opts: PublishOptions, total: number): string
   if (p.nuove) parts.push(`${p.nuove} nuove`);
   if (p.modificate) parts.push(`${p.modificate} modificate`);
   if (p.eliminate) parts.push(`${p.eliminate} eliminate`);
+  if (p.categorie) parts.push('categorie');
   if (opts.newSociPassword != null) parts.push('nuova password soci');
   if (opts.aiPassword != null) parts.push('nuova password AI');
   if (opts.stopAi) parts.push('AI non più condivisa');
