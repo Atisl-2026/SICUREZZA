@@ -210,6 +210,17 @@ In cima alla scheda **Chiedi** si sceglie il tipo di ricerca.
 - `-parola` (o `-"frase"`) per **escludere** le schede che la contengono.
   Esempio: `ponteggio "tavola fermapiede" -trabattello`.
 
+**Tutti i risultati nell'archivio** (sotto la risposta, in entrambe le modalità): come «Trova» in Word, ma su tutto
+l'archivio. Dice quante volte compare la parola e in quante forme (es. *«preposto» compare 699 volte — preposto 347 ·
+preposti 344 · preposte 7 · preposta 1*), poi elenca **tutti** i passaggi, raggruppati per documento (prima quelli
+dove la parola compare di più) e nell'ordine del testo, 10 alla volta con **Mostra altri**. I passaggi più pertinenti
+mostrati sopra sono quelli che legge l'AI (al massimo 8).
+
+Parole simili e errori di battitura: solo se la parola cercata **non esiste** nell'archivio (e l'app lo dice: «prepsto
+non compare nell'archivio: mostro le parole più simili»). Se la parola esiste, si cercano solo le sue forme
+(singolare/plurale, maschile/femminile): «preposto» non trova più «proposta». Le parole attaccate ai numeri, frequenti
+negli indici dei PDF («preposto253», «art.18»), vengono trovate.
+
 **Ricerca dettagliata** (solo ricerca nell'archivio, funziona offline):
 
 | Campo | Significato |
@@ -551,9 +562,12 @@ tests/           test di ricerca, Gemini, accessi e cifratura, database, import,
 
 - testo normalizzato in minuscolo e senza accenti; stopword italiane rimosse;
 - stemmer leggero: singolare/plurale e maschile/femminile coincidono (*veicolo/veicoli*, *banca/banche*);
-- errori di battitura tollerati (1 dai 5 caratteri, 2 dai 9); l'ultima parola vale anche come prefisso;
+- lettere e cifre attaccate separate («preposto253» → preposto, 253);
+- errori di battitura tollerati (1 dai 5 caratteri, 2 dai 9) e ultima parola come prefisso **solo per le parole che
+  non esistono nell'archivio**;
 - pesi: titolo ×2, tag ×1,5, testo ×1, categoria ×0,5;
-- risultati: almeno i primi 6 blocchi pertinenti, al massimo 8, al massimo 3 dallo stesso record;
+- per l'AI: almeno i primi 6 blocchi pertinenti, al massimo 8, al massimo 3 dallo stesso record;
+- «Tutti i risultati»: ogni blocco che contiene le parole, raggruppato per documento, con il conteggio delle forme;
 - l'indice è salvato in IndexedDB e ricostruito solo quando i dati cambiano.
 
 ### Personalizzare nome, logo e colori

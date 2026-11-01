@@ -7,7 +7,9 @@ import { aiAllowed, getAccess, type Accesso } from '../lib/access';
 import { db } from '../lib/db';
 import { addToHistory, clearHistory, removeFromHistory, useHistory } from '../lib/history';
 import { useLiveQuery } from '../lib/live';
-import { searchLocal, type LocalResult } from '../lib/search';
+import { allMatches, searchLocal, type AllMatches, type LocalResult } from '../lib/search';
+import { AllResults } from '../components/AllResults';
+import { parseSimpleQuery, wordsOf } from '../shared/search.ts';
 import { useRoute } from '../lib/route';
 import { PhotoPage } from './Photo';
 import { DetailedPage } from './Detailed';
@@ -23,6 +25,8 @@ interface AskState {
   draft: string;
   asked: string;
   results: LocalResult[] | null;
+  /** tutti i passaggi trovati, per documento */
+  all: AllMatches | null;
   dbAi: AiState;
   webAi: AiState;
   unavailable: AiUnavailable;
@@ -31,8 +35,17 @@ interface AskState {
 const IDLE: AiState = { status: 'idle' };
 
 // Lo stato sopravvive al cambio di scheda (il componente viene smontato).
-let saved: AskState = { draft: '', asked: '', results: null, dbAi: IDLE, webAi: IDLE, unavailable: null };
+let saved: AskState = { draft: '', asked: '', results: null, all: null, dbAi: IDLE, webAi: IDLE, unavailable: null };
 let inflight: AbortController | null = null;
+
+/** Cosa è stato cercato, per il riepilogo: «preposto», «tavola fermapiede» o «le parole cercate». */
+function searchLabel(q: string): { label: string; multi: boolean } {
+  const p = parseSimpleQuery(q);
+  const words = wordsOf(p.text);
+  if (p.phrases.length === 1 && !words.length) return { label: `«${p.phrases[0]}»`, multi: false };
+  if (!p.phrases.length && words.length === 1) return { label: `«${words[0]}»`, multi: false };
+  return { label: 'Le parole cercate', multi: true };
+}
 
 /** Scheda Chiedi: domande sull'archivio, oppure analisi foto (#chiedi/foto, solo con l'AI). */
 export function AskPage(props: Props) {
@@ -54,6 +67,7 @@ function AskMain({ online, access }: Props) {
   const [draft, setDraft] = useState(saved.draft);
   const [asked, setAsked] = useState(saved.asked);
   const [results, setResults] = useState<LocalResult[] | null>(saved.results);
+  const [all, setAll] = useState<AllMatches | null>(saved.all);
   const [dbAi, setDbAi] = useState<AiState>(saved.dbAi);
   const [webAi, setWebAi] = useState<AiState>(saved.webAi);
   const [unavailable, setUnavailable] = useState<AiUnavailable>(saved.unavailable);
@@ -72,8 +86,8 @@ function AskMain({ online, access }: Props) {
   }, []);
 
   useEffect(() => {
-    saved = { draft, asked, results, dbAi, webAi, unavailable };
-  }, [draft, asked, results, dbAi, webAi, unavailable]);
+    saved = { draft, asked, results, all, dbAi, webAi, unavailable };
+  }, [draft, asked, results, all, dbAi, webAi, unavailable]);
 
   // il campo cresce con il testo (fino al massimo definito nel CSS)
   useEffect(() => {
@@ -139,9 +153,12 @@ function AskMain({ online, access }: Props) {
     setAi('web', IDLE);
     inputRef.current?.blur(); // chiude la tastiera su mobile
     try {
-      const res = await searchLocal(question, { categorie: (await getSettings()).categorie });
+      const { categorie } = await getSettings();
+      // i passaggi più pertinenti (per l'AI) e tutti i passaggi trovati (per documento)
+      const [res, tutti] = await Promise.all([searchLocal(question, { categorie }), allMatches(question, categorie)]);
       setAsked(question);
       setResults(res);
+      setAll(tutti);
       addToHistory(question);
       requestAnimationFrame(() => resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
       runAi(question, res);
@@ -157,6 +174,7 @@ function AskMain({ online, access }: Props) {
     setDraft('');
     setAsked('');
     setResults(null);
+    setAll(null);
     setDbAi(IDLE);
     setWebAi(IDLE);
     inputRef.current?.focus();
@@ -244,6 +262,7 @@ function AskMain({ online, access }: Props) {
             recordCount={recordCount}
             onRetry={() => runAi(asked, results, 'db')}
           />
+          {all && (all.passaggi > 0 || all.simili.length > 0) && <AllResults data={all} {...searchLabel(asked)} />}
           <WebSection ai={webAi} />
         </div>
       )}

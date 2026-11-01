@@ -1,8 +1,9 @@
 import type MiniSearch from 'minisearch';
 import type { SearchResult } from 'minisearch';
 import {
-  buildIndex, candidates, detailedCandidates, EMPTY_DETAILED, INDEX_FORMAT, isDetailedEmpty, loadIndex, matchesDetailed,
-  selectHits, toSearchDocs, type DetailedQuery, type Hit, type RetrieveOptions, type SearchDoc
+  buildIndex, candidates, countOccurrences, detailedCandidates, EMPTY_DETAILED, INDEX_FORMAT, isDetailedEmpty, loadIndex,
+  formsOf, matchesDetailed, planTerms, processTerm, selectHits, toSearchDocs, wordsOf, type DetailedQuery, type Hit,
+  type RetrieveOptions, type SearchDoc
 } from '../shared/search.ts';
 import type { Chunk, StoredRecord } from '../shared/types.ts';
 import { db, getMeta, setMeta } from './db';
@@ -67,7 +68,7 @@ export interface LocalResult extends Hit {
 }
 
 /** Quanti candidati leggere al massimo per i controlli sul testo (frasi, esclusioni, parole esatte). */
-const MAX_TEXT_CHECK = 2000;
+const MAX_TEXT_CHECK = 6000;
 
 async function loadTexts(ids: string[]) {
   const chunks = await db.chunks.bulkGet(ids);
@@ -138,6 +139,134 @@ export async function searchDetailed(q: DetailedQuery, categorie?: string[], lim
   // tutti i passaggi validi, al massimo 3 per scheda, senza soglia di punteggio
   const hits = selectHits(ok, { limit, maxPerRecord: 3, minResults: limit, minRelativeScore: 0 });
   return { results: attach(hits, data, q.phrases), totale: ok.length };
+}
+
+// ============================================================ tutti i risultati
+
+export interface DocMatches {
+  recordId: string;
+  titolo: string;
+  categoria: string;
+  /** passaggi del documento che corrispondono, nell'ordine del testo */
+  passaggi: Hit[];
+  /** quante volte compaiono le parole (o le frasi) cercate nel documento intero */
+  occorrenze: number;
+  /** occorrenze per forma della parola (preposto, preposti…), dalla più frequente */
+  forme: [string, number][];
+}
+
+export interface AllMatches {
+  documenti: DocMatches[];
+  passaggi: number;
+  occorrenze: number;
+  /** occorrenze per forma della parola in tutto l'archivio */
+  forme: [string, number][];
+  /** parole non presenti nell'archivio, cercate come parole simili */
+  simili: string[];
+  /** frasi esatte cercate (per l'evidenziazione) */
+  phrases: string[];
+  /** true se mostra i passaggi con TUTTE le parole; false se solo con alcune */
+  conTutte: boolean;
+}
+
+const EMPTY_ALL: AllMatches = { documenti: [], passaggi: 0, occorrenze: 0, forme: [], simili: [], phrases: [], conTutte: true };
+
+/** Raggruppa per documento (prima i più pertinenti) e conta le occorrenze nel testo completo. */
+async function groupByDocument(
+  results: SearchResult[],
+  phrases: string[],
+  countTerms?: Set<string>,
+  countPhrases: string[] = phrases
+): Promise<Omit<AllMatches, 'simili' | 'conTutte'>> {
+  const docs = new Map<string, { hits: Hit[]; terms: Set<string> }>();
+  for (const r of results) {
+    const recordId = String(r.recordId);
+    const d = docs.get(recordId) ?? { hits: [], terms: new Set<string>() };
+    d.hits.push({ chunkId: String(r.id), recordId, n: r.n as number, score: r.score, terms: r.terms });
+    r.terms.forEach((t) => d.terms.add(t));
+    docs.set(recordId, d);
+  }
+  const records = await db.records.bulkGet([...docs.keys()]);
+  const documenti: DocMatches[] = [];
+  for (const rec of records) {
+    if (!rec) continue;
+    const d = docs.get(rec.id)!;
+    const forme = countPhrases.length ? new Map<string, number>() : formsOf(rec.testo, countTerms ?? d.terms);
+    documenti.push({
+      recordId: rec.id,
+      titolo: rec.titolo,
+      categoria: rec.categoria,
+      passaggi: d.hits.sort((a, b) => a.n - b.n),
+      occorrenze: countPhrases.length ? countOccurrences(rec.testo, [], countPhrases) : [...forme.values()].reduce((a, b) => a + b, 0),
+      forme: [...forme].sort((a, b) => b[1] - a[1])
+    });
+  }
+  const totForme = new Map<string, number>();
+  for (const d of documenti) for (const [f, n] of d.forme) totForme.set(f, (totForme.get(f) ?? 0) + n);
+  // prima i documenti dove le parole compaiono di più
+  documenti.sort((a, b) => b.occorrenze - a.occorrenze || b.passaggi.length - a.passaggi.length);
+  return {
+    documenti,
+    passaggi: documenti.reduce((n, d) => n + d.passaggi.length, 0),
+    occorrenze: documenti.reduce((n, d) => n + d.occorrenze, 0),
+    forme: [...totForme].sort((a, b) => b[1] - a[1]),
+    phrases
+  };
+}
+
+/**
+ * Tutti i passaggi che contengono le parole cercate (non solo i più pertinenti per l'AI):
+ * se ci sono passaggi con tutte le parole si mostrano quelli, altrimenti quelli con almeno una.
+ */
+export async function allMatches(query: string, categorie?: string[]): Promise<AllMatches> {
+  const index = await getIndex();
+  const c = candidates(index, query, categorie);
+  if (!c.results.length) return { ...EMPTY_ALL, simili: c.simili };
+  const conTutte = c.conTutte > 0;
+  let pool = conTutte ? c.results.slice(0, c.conTutte) : c.results;
+  const { phrases, exclude } = c.parsed;
+  if (phrases.length || exclude.length) {
+    pool = pool.slice(0, MAX_TEXT_CHECK);
+    const data = await loadTexts(pool.map((r) => String(r.id)));
+    pool = pool.filter((r) => {
+      const chunk = data.chunks.get(String(r.id));
+      const record = chunk && data.records.get(chunk.recordId);
+      return !!chunk && !!record && matchesDetailed(chunk.testo, record.titolo, record.testo, {
+        ...EMPTY_DETAILED, phrases, none: exclude.join(' ')
+      });
+    });
+  }
+  // occorrenze: le parole cercate così come esistono nell'archivio (per le parole simili, quelle trovate)
+  const plan = planTerms(index, [c.parsed.text, ...phrases].join(' '));
+  const countTerms = plan.simili.length ? undefined : plan.exact;
+  return { ...(await groupByDocument(pool, phrases, countTerms)), simili: c.simili, conTutte };
+}
+
+/** Tutti i passaggi della ricerca dettagliata, raggruppati per documento. */
+export async function allDetailedMatches(q: DetailedQuery, categorie?: string[]): Promise<AllMatches> {
+  if (isDetailedEmpty(q)) return EMPTY_ALL;
+  const index = await getIndex();
+  const pool = detailedCandidates(index, q, categorie).slice(0, MAX_TEXT_CHECK);
+  const plan = planTerms(index, [q.all, ...q.phrases, q.any].join(' '));
+  const simili = q.exact ? [] : plan.simili;
+  if (!pool.length) return { ...EMPTY_ALL, simili };
+  const data = await loadTexts(pool.map((r) => String(r.id)));
+  const ok = pool.filter((r) => {
+    const chunk = data.chunks.get(String(r.id));
+    const record = chunk && data.records.get(chunk.recordId);
+    return !!chunk && !!record && matchesDetailed(chunk.testo, record.titolo, record.testo, q);
+  });
+  const words = wordsOf([q.all, q.any].join(' '));
+  // parole esatte: si contano solo le parole scritte esattamente così (come frasi di una parola)
+  const countPhrases = q.phrases.length ? q.phrases : q.exact ? words : [];
+  const countTerms = new Set(words.map((w) => processTerm(w)!).filter((t) => plan.exact.has(t)));
+  const out = await groupByDocument(ok, q.phrases, countTerms.size ? countTerms : undefined, countPhrases);
+  return { ...out, simili, conTutte: true };
+}
+
+/** Testi dei passaggi da mostrare (caricati a pagine). */
+export async function loadMatches(hits: Hit[], phrases: string[] = []): Promise<LocalResult[]> {
+  return attach(hits, await loadTexts(hits.map((h) => h.chunkId)), phrases);
 }
 
 /** Argomenti presenti nell'archivio, con il numero di schede. */

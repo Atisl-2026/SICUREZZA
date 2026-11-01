@@ -21,8 +21,34 @@ caso casi modo volta bisogna occorre serve servono vorrei sapere dire dimmi spie
 c d n s v
 `.trim().split(/\s+/));
 
-/** Parole (lettere e cifre) con posizione nel testo originale. */
-const WORD = /[\p{L}\p{N}]+/gu;
+/**
+ * Parole: sequenze di lettere oppure di cifre. Lettere e cifre attaccate si separano:
+ * «preposto253» (numero di pagina nell'indice di un PDF) → «preposto», «253»; «art.18» → «art», «18».
+ */
+const WORD = /\p{L}+|\p{N}+/gu;
+
+const escapeRe = (w: string) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const isNum = (w: string) => /^\p{N}/u.test(w);
+
+/**
+ * Espressione che trova una frase (o una parola) intera: maiuscole e punteggiatura ignorate,
+ * lettere e cifre attaccate ammesse («art.18», «preposto253»).
+ * Il gruppo 1 è il carattere che precede (niente "lookbehind": non funziona su Safari iOS 15/16.3);
+ * la frase inizia a m.index + m[1].length.
+ */
+export function phraseRegex(phrase: string, flags = 'iu'): RegExp | null {
+  const words = tokenize(phrase);
+  if (!words.length) return null;
+  let body = escapeRe(words[0]);
+  for (let i = 1; i < words.length; i++) {
+    // tra lettere e cifre lo spazio può mancare; tra due parole dello stesso tipo serve un separatore
+    const sep = isNum(words[i - 1]) !== isNum(words[i]) ? '[^\\p{L}\\p{N}]*' : '[^\\p{L}\\p{N}]+';
+    body += sep + escapeRe(words[i]);
+  }
+  const before = isNum(words[0]) ? '(^|[^\\p{N}])' : '(^|[^\\p{L}])';
+  const after = isNum(words[words.length - 1]) ? '(?!\\p{N})' : '(?!\\p{L})';
+  return new RegExp(`${before}${body}${after}`, flags);
+}
 
 export function tokenize(text: string): string[] {
   return text.match(WORD) ?? [];
@@ -61,7 +87,7 @@ export interface SearchDoc {
   categoria: string;
 }
 
-export const INDEX_FORMAT = 2; // 2: categoria tra i campi memorizzati (filtro per argomento)
+export const INDEX_FORMAT = 3; // 2: categoria tra i campi memorizzati; 3: lettere e cifre attaccate separate
 
 export const SEARCH_OPTIONS: Options<SearchDoc> = {
   fields: ['titolo', 'testo', 'tag', 'categoria'],
@@ -137,7 +163,10 @@ function categoryFilter(categorie?: string[]): ((r: SearchResult) => boolean) | 
 
 /** Testo per i confronti esatti: minuscole, senza accenti e punteggiatura, con spazi ai bordi. */
 export function normalizeForMatch(s: string): string {
-  const t = stripAccents(s.toLowerCase()).replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+  const t = stripAccents(s.toLowerCase())
+    .replace(/(\p{L})(?=\p{N})|(\p{N})(?=\p{L})/gu, '$1$2 ') // «preposto253» → «preposto 253»
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .trim();
   return ` ${t} `;
 }
 
@@ -179,19 +208,64 @@ export function parseSimpleQuery(q: string): ParsedQuery {
 }
 
 /**
+ * Tolleranza agli errori e completamento della parola SOLO per le parole che non esistono
+ * nell'archivio: «preposto» trova preposto/preposti/preposta, non «proposta»;
+ * «prepsto» (errore di battitura) trova comunque «preposto».
+ */
+export interface TermPlan {
+  /** termini (normalizzati) presenti esattamente nell'archivio */
+  exact: Set<string>;
+  /** parole cercate che non esistono nell'archivio: si cercano parole simili */
+  simili: string[];
+  fuzzy: (term: string) => number | false;
+  prefix: (term: string, i: number, terms: string[]) => boolean;
+}
+
+export function planTerms(index: MiniSearch<SearchDoc>, text: string): TermPlan {
+  const exact = new Set<string>();
+  const simili: string[] = [];
+  const seen = new Set<string>();
+  for (const w of wordsOf(text)) {
+    const p = processTerm(w);
+    if (!p || seen.has(p)) continue;
+    seen.add(p);
+    if (index.search(w, { fuzzy: false, prefix: false }).length) exact.add(p);
+    else simili.push(w);
+  }
+  return {
+    exact,
+    simili,
+    fuzzy: (term) => (exact.has(term) ? false : term.length >= 9 ? 2 : term.length >= 5 ? 1 : false),
+    // ultima parola ancora da finire di scrivere ("stamp" → stampante), solo se non esiste così com'è
+    prefix: (term, i, terms) => !exact.has(term) && i === terms.length - 1 && term.length >= 3
+  };
+}
+
+export interface Candidates {
+  /** prima i blocchi con TUTTE le parole, poi quelli con almeno una */
+  results: SearchResult[];
+  /** quanti dei primi risultati contengono tutte le parole */
+  conTutte: number;
+  parsed: ParsedQuery;
+  /** parole non presenti nell'archivio, cercate come parole simili */
+  simili: string[];
+}
+
+/**
  * Candidati della ricerca semplice: prima i blocchi che contengono TUTTE le parole significative,
  * poi quelli che ne contengono almeno una (in ordine di pertinenza).
  */
-export function candidates(index: MiniSearch<SearchDoc>, query: string, categorie?: string[]): { results: SearchResult[]; parsed: ParsedQuery } {
+export function candidates(index: MiniSearch<SearchDoc>, query: string, categorie?: string[]): Candidates {
   const parsed = parseSimpleQuery(query);
   const text = [parsed.text, ...parsed.phrases].join(' ').trim();
-  if (!text || !wordsOf(text).length) return { results: [], parsed };
-  const filter = categoryFilter(categorie);
-  const all = index.search(text, { combineWith: 'AND', filter });
-  const any = index.search(text, { combineWith: 'OR', filter });
+  if (!text || !wordsOf(text).length) return { results: [], conTutte: 0, parsed, simili: [] };
+  const plan = planTerms(index, text);
+  const base = { filter: categoryFilter(categorie), fuzzy: plan.fuzzy, prefix: plan.prefix };
+  const all = index.search(text, { ...base, combineWith: 'AND' });
+  const any = index.search(text, { ...base, combineWith: 'OR' });
   const seen = new Set(all.map((r) => r.id));
   // i blocchi con tutte le parole vengono prima; il punteggio "OR" resta per il taglio relativo
-  return { results: [...all, ...any.filter((r) => !seen.has(r.id))], parsed };
+  return { results: [...all, ...any.filter((r) => !seen.has(r.id))], conTutte: all.length, parsed, simili: plan.simili };
 }
 
 /** Sceglie i blocchi da mostrare: massimo per record, limite, soglia relativa. */
@@ -245,9 +319,11 @@ export function isDetailedEmpty(q: DetailedQuery): boolean {
 export function detailedCandidates(index: MiniSearch<SearchDoc>, q: DetailedQuery, categorie?: string[]): SearchResult[] {
   const required = [q.all, ...q.phrases].join(' ').trim();
   const any = q.any.trim();
+  const plan = planTerms(index, [required, any].join(' '));
   const base = {
     prefix: false,
-    fuzzy: q.exact ? false : (term: string) => (term.length >= 6 ? 1 : false),
+    // parole simili solo per le parole che non esistono nell'archivio
+    fuzzy: q.exact ? false : (term: string) => (plan.exact.has(term) ? false : term.length >= 6 ? 1 : false),
     filter: categoryFilter(categorie)
   };
   const hasReq = wordsOf(required).length > 0;
@@ -279,6 +355,45 @@ export function matchesDetailed(chunkText: string, titolo: string, recordText: s
     if (excluded.some((w) => (q.exact ? containsPhrase(wholeNorm, w) : containsWordForm(whole, w) || containsPhrase(wholeNorm, w)))) return false;
   }
   return true;
+}
+
+/** Quante volte compaiono nel testo le parole trovate (in ogni forma) o le frasi esatte. */
+export function countOccurrences(text: string, terms: Iterable<string>, phrases: string[] = []): number {
+  if (phrases.length) {
+    const plain = stripAccents(text);
+    let n = 0;
+    for (const ph of phrases) {
+      const re = phraseRegex(stripAccents(ph), 'giu');
+      if (re) n += [...plain.matchAll(re)].length;
+    }
+    return n;
+  }
+  let n = 0;
+  for (const c of formsOf(text, terms).values()) n += c;
+  return n;
+}
+
+/** Quante volte compare ogni forma delle parole cercate (es. preposto 347, preposti 344). */
+export function formsOf(text: string, terms: Iterable<string>): Map<string, number> {
+  const set = new Set(terms);
+  const out = new Map<string, number>();
+  if (!set.size) return out;
+  // prima un filtro veloce sulle parole che iniziano come i termini cercati, poi il controllo esatto
+  const plain = stripAccents(text.toLowerCase());
+  const byLength = [...set].sort((a, b) => b.length - a.length);
+  const words = byLength.filter((t) => !isNum(t)).map(escapeRe);
+  const nums = byLength.filter(isNum).map(escapeRe);
+  // parole che iniziano come i termini cercati (gruppo 2), poi il controllo esatto; niente "lookbehind" (Safari iOS)
+  const res = [
+    words.length && new RegExp(`(^|[^\\p{L}])((?:${words.join('|')})\\p{L}*)`, 'gu'),
+    nums.length && new RegExp(`(^|[^\\p{N}])(${nums.join('|')})(?!\\p{N})`, 'gu')
+  ].filter((r): r is RegExp => !!r);
+  for (const re of res) {
+    for (const m of plain.matchAll(re)) {
+      if (set.has(processTerm(m[2]) ?? '')) out.set(m[2], (out.get(m[2]) ?? 0) + 1);
+    }
+  }
+  return out;
 }
 
 /** Termini significativi della domanda (per mostrare all'utente cosa è stato cercato). */
@@ -358,9 +473,7 @@ export function snippet(text: string, terms: string[], size = 320, phrases: stri
 export function phraseIndex(text: string, phrases: string[]): number {
   let best = -1;
   for (const ph of phrases) {
-    const words = tokenize(ph).map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
-    if (!words.length) continue;
-    const m = new RegExp(`(^|[^\\p{L}\\p{N}])(${words.join('[^\\p{L}\\p{N}]+')})(?![\\p{L}\\p{N}])`, 'iu').exec(text);
+    const m = phraseRegex(ph)?.exec(text);
     if (m && (best < 0 || m.index + m[1].length < best)) best = m.index + m[1].length;
   }
   return best;

@@ -690,3 +690,16 @@ a.link-btn.apk-link { display: inline-flex; align-items: center; justify-content
 .reserve { border-top: 1px solid var(--border); padding: 10px 0; }
 .reserve > summary { display: flex; align-items: center; gap: 8px; cursor: pointer; min-height: 44px; }
 .reserve > summary strong { flex: 1; }
+
+/* tutti i risultati, per documento */
+.all-summary { margin: 0 0 10px; }
+.doc-group { padding: 0; overflow: hidden; }
+.doc-group > summary { display: flex; flex-direction: column; gap: 2px; padding: 14px 16px; cursor: pointer; list-style: none; }
+.doc-group > summary::-webkit-details-marker { display: none; }
+.doc-group > summary::after { content: "▾"; position: absolute; right: 16px; color: var(--text-muted); }
+.doc-group { position: relative; }
+.doc-group[open] > summary::after { content: "▴"; }
+.doc-group > summary .doc-title { font-weight: 700; padding-right: 24px; overflow-wrap: anywhere; }
+.doc-passages { padding: 0 12px 12px; display: flex; flex-direction: column; gap: 10px; }
+.doc-passages .result-card { margin: 0; box-shadow: none; border: 1px solid var(--border); }
+.all-forms { display: block; margin-top: 4px; color: var(--text-muted); }

@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { ResultCard } from '../components/ResultCard';
+import { AllResults } from '../components/AllResults';
 import { TopicFilter } from '../components/TopicFilter';
-import { searchDetailed, type DetailedResult } from '../lib/search';
+import { allDetailedMatches, type AllMatches } from '../lib/search';
 import { getSettings } from '../lib/settings';
-import { EMPTY_DETAILED, isDetailedEmpty, type DetailedQuery } from '../shared/search.ts';
+import { EMPTY_DETAILED, isDetailedEmpty, wordsOf, type DetailedQuery } from '../shared/search.ts';
 
 interface Form {
   all: string;
@@ -14,10 +14,19 @@ interface Form {
 }
 
 const EMPTY_FORM: Form = { all: '', phrases: '', any: '', none: '', exact: false };
-const PAGE = 30;
 
 // Lo stato sopravvive al cambio di scheda.
-let saved: { form: Form; result: DetailedResult | null; limit: number } = { form: EMPTY_FORM, result: null, limit: PAGE };
+let saved: { form: Form; result: AllMatches | null; label: { label: string; multi: boolean } } = {
+  form: EMPTY_FORM, result: null, label: { label: '', multi: true }
+};
+
+/** Cosa è stato cercato, per il riepilogo («preposto», «tavola fermapiede» o «le parole cercate»). */
+function labelOf(q: DetailedQuery): { label: string; multi: boolean } {
+  const words = [...wordsOf(q.all), ...wordsOf(q.any)];
+  if (q.phrases.length === 1 && !words.length) return { label: `«${q.phrases[0]}»`, multi: false };
+  if (!q.phrases.length && words.length === 1) return { label: `«${words[0]}»`, multi: false };
+  return { label: 'Le parole cercate', multi: true };
+}
 
 export function toQuery(f: Form): DetailedQuery {
   return {
@@ -34,26 +43,26 @@ export function toQuery(f: Form): DetailedQuery {
 /** Ricerca dettagliata: più parole e frasi, esclusioni, parole esatte, per argomento. Funziona offline. */
 export function DetailedPage() {
   const [form, setForm] = useState<Form>(saved.form);
-  const [result, setResult] = useState<DetailedResult | null>(saved.result);
-  const [limit, setLimit] = useState(saved.limit);
+  const [result, setResult] = useState<AllMatches | null>(saved.result);
+  const [label, setLabel] = useState(saved.label);
   const [busy, setBusy] = useState(false);
   const resultsRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => { saved = { form, result, limit }; }, [form, result, limit]);
+  useEffect(() => { saved = { form, result, label }; }, [form, result, label]);
 
   const set = (k: keyof Form) => (e: Event) => {
     const t = e.target as HTMLInputElement;
     setForm({ ...form, [k]: k === 'exact' ? t.checked : t.value });
   };
 
-  const run = async (lim = PAGE) => {
+  const run = async () => {
     setBusy(true);
     const { categorie } = await getSettings();
-    const r = await searchDetailed(toQuery(form), categorie, lim);
-    setResult(r);
-    setLimit(lim);
+    const q = toQuery(form);
+    setResult(await allDetailedMatches(q, categorie));
+    setLabel(labelOf(q));
     setBusy(false);
-    if (lim === PAGE) requestAnimationFrame(() => resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+    requestAnimationFrame(() => resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
   };
 
   const empty = isDetailedEmpty(toQuery(form));
@@ -96,22 +105,15 @@ export function DetailedPage() {
 
       {result && (
         <div ref={resultsRef} class="answer" aria-live="polite">
-          <h3 class="section-title">
-            Risultati <span class="muted small">· {result.totale} {result.totale === 1 ? 'passaggio' : 'passaggi'}</span>
-          </h3>
-          {result.totale === 0 && (
-            <div class="card">
-              <p class="muted">Nessun passaggio soddisfa tutte le condizioni. Prova a togliere una parola, a spegnere «Solo parole esatte» o a cercare in tutti gli argomenti.</p>
-            </div>
-          )}
-          {result.results.map((r, i) => <ResultCard key={r.chunkId} r={r} index={i} />)}
-          {result.totale > result.results.length && result.results.length >= limit && (
-            <button type="button" class="btn btn-block" disabled={busy} onClick={() => run(limit + PAGE)}>
-              Mostra altri
-            </button>
-          )}
-          {result.totale > result.results.length && result.results.length < limit && (
-            <p class="muted small">Mostrati al massimo 3 passaggi per scheda: apri la scheda per leggere il resto.</p>
+          {result.passaggi === 0 && result.simili.length === 0 ? (
+            <>
+              <h3 class="section-title">Risultati</h3>
+              <div class="card">
+                <p class="muted">Nessun passaggio soddisfa tutte le condizioni. Prova a togliere una parola, a spegnere «Solo parole esatte» o a cercare in tutti gli argomenti.</p>
+              </div>
+            </>
+          ) : (
+            <AllResults data={result} label={label.label} multi={label.multi} title="Risultati" />
           )}
         </div>
       )}
