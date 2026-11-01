@@ -1,6 +1,8 @@
 import type MiniSearch from 'minisearch';
+import type { SearchResult } from 'minisearch';
 import {
-  buildIndex, INDEX_FORMAT, loadIndex, retrieve, toSearchDocs, type Hit, type RetrieveOptions, type SearchDoc
+  buildIndex, candidates, detailedCandidates, EMPTY_DETAILED, INDEX_FORMAT, isDetailedEmpty, loadIndex, matchesDetailed,
+  selectHits, toSearchDocs, type DetailedQuery, type Hit, type RetrieveOptions, type SearchDoc
 } from '../shared/search.ts';
 import type { Chunk, StoredRecord } from '../shared/types.ts';
 import { db, getMeta, setMeta } from './db';
@@ -60,23 +62,89 @@ export async function getIndex(): Promise<MiniSearch<SearchDoc>> {
 export interface LocalResult extends Hit {
   chunk: Chunk;
   record: StoredRecord;
+  /** frasi esatte cercate: l'estratto parte da lì */
+  phrases?: string[];
 }
 
-/** Ricerca locale: i 6–8 blocchi più pertinenti, con il record padre. */
-export async function searchLocal(query: string, opts?: Partial<RetrieveOptions>): Promise<LocalResult[]> {
-  const index = await getIndex();
-  const hits = retrieve(index, query, opts);
-  if (!hits.length) return [];
-  const [chunks, records] = await Promise.all([
-    db.chunks.bulkGet(hits.map((h) => h.chunkId)),
-    db.records.bulkGet([...new Set(hits.map((h) => h.recordId))])
-  ]);
-  const recMap = new Map(records.filter((r): r is StoredRecord => !!r).map((r) => [r.id, r]));
-  return hits.flatMap((h, i) => {
-    const chunk = chunks[i];
-    const record = recMap.get(h.recordId);
-    return chunk && record ? [{ ...h, chunk, record }] : [];
+/** Quanti candidati leggere al massimo per i controlli sul testo (frasi, esclusioni, parole esatte). */
+const MAX_TEXT_CHECK = 2000;
+
+async function loadTexts(ids: string[]) {
+  const chunks = await db.chunks.bulkGet(ids);
+  const recIds = [...new Set(chunks.filter((c): c is Chunk => !!c).map((c) => c.recordId))];
+  const records = await db.records.bulkGet(recIds);
+  return {
+    chunks: new Map(chunks.filter((c): c is Chunk => !!c).map((c) => [c.id, c])),
+    records: new Map(records.filter((r): r is StoredRecord => !!r).map((r) => [r.id, r]))
+  };
+}
+
+function attach(hits: Hit[], data: Awaited<ReturnType<typeof loadTexts>>, phrases?: string[]): LocalResult[] {
+  return hits.flatMap((h) => {
+    const chunk = data.chunks.get(h.chunkId);
+    const record = data.records.get(h.recordId);
+    return chunk && record ? [{ ...h, chunk, record, ...(phrases?.length ? { phrases } : {}) }] : [];
   });
+}
+
+/**
+ * Ricerca locale: i 6–8 blocchi più pertinenti, con il record padre.
+ * Nella casella si possono usare "frasi tra virgolette" e -parole da escludere.
+ */
+export async function searchLocal(query: string, opts: Partial<RetrieveOptions> = {}): Promise<LocalResult[]> {
+  const index = await getIndex();
+  const { results, parsed } = candidates(index, query, opts.categorie);
+  if (!results.length) return [];
+
+  if (!parsed.phrases.length && !parsed.exclude.length) {
+    const hits = selectHits(results, opts);
+    return attach(hits, await loadTexts(hits.map((h) => h.chunkId)));
+  }
+  // frasi ed esclusioni: controllo sul testo dei candidati
+  const pool = results.slice(0, MAX_TEXT_CHECK);
+  const data = await loadTexts(pool.map((r) => String(r.id)));
+  const accept = (r: SearchResult) => {
+    const chunk = data.chunks.get(String(r.id));
+    const record = chunk && data.records.get(chunk.recordId);
+    if (!chunk || !record) return false;
+    return matchesDetailed(chunk.testo, record.titolo, record.testo, {
+      ...EMPTY_DETAILED, phrases: parsed.phrases, none: parsed.exclude.join(' ')
+    });
+  };
+  return attach(selectHits(pool, opts, accept), data, parsed.phrases);
+}
+
+export interface DetailedResult {
+  results: LocalResult[];
+  /** blocchi che soddisfano la ricerca (prima del limite) */
+  totale: number;
+}
+
+/**
+ * Ricerca dettagliata: tutte le parole, frasi esatte, almeno una parola, esclusioni, parole esatte.
+ * Restituisce i passaggi che soddisfano tutte le condizioni, in ordine di pertinenza.
+ */
+export async function searchDetailed(q: DetailedQuery, categorie?: string[], limit = 30): Promise<DetailedResult> {
+  if (isDetailedEmpty(q)) return { results: [], totale: 0 };
+  const index = await getIndex();
+  const pool = detailedCandidates(index, q, categorie).slice(0, MAX_TEXT_CHECK);
+  if (!pool.length) return { results: [], totale: 0 };
+  const data = await loadTexts(pool.map((r) => String(r.id)));
+  const ok = pool.filter((r) => {
+    const chunk = data.chunks.get(String(r.id));
+    const record = chunk && data.records.get(chunk.recordId);
+    return !!chunk && !!record && matchesDetailed(chunk.testo, record.titolo, record.testo, q);
+  });
+  // tutti i passaggi validi, al massimo 3 per scheda, senza soglia di punteggio
+  const hits = selectHits(ok, { limit, maxPerRecord: 3, minResults: limit, minRelativeScore: 0 });
+  return { results: attach(hits, data, q.phrases), totale: ok.length };
+}
+
+/** Argomenti presenti nell'archivio, con il numero di schede. */
+export async function categoryCounts(): Promise<Map<string, number>> {
+  const counts = new Map<string, number>();
+  await db.records.each((r) => counts.set(r.categoria, (counts.get(r.categoria) ?? 0) + 1));
+  return counts;
 }
 
 /** Prepara l'indice quando il dispositivo è libero, così la prima ricerca è immediata. */

@@ -11,13 +11,16 @@ export interface Settings {
   apiKey: string;
   /** Nome del modello Gemini (configurabile perché nomi e limiti gratuiti cambiano). */
   model: string;
+  /** Argomenti in cui cercare (vuoto = tutti). */
+  categorie: string[];
 }
 
 export const DEFAULT_SETTINGS: Settings = {
   autoCheck: true,
   webCheck: false,
   apiKey: '',
-  model: DEFAULT_MODEL
+  model: DEFAULT_MODEL,
+  categorie: []
 };
 
 export async function getSettings(): Promise<Settings> {

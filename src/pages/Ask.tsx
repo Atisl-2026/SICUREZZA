@@ -9,6 +9,8 @@ import { useLiveQuery } from '../lib/live';
 import { searchLocal, type LocalResult } from '../lib/search';
 import { useRoute } from '../lib/route';
 import { PhotoPage } from './Photo';
+import { DetailedPage } from './Detailed';
+import { TopicFilter } from '../components/TopicFilter';
 import { getSettings, updateSettings, useSettings } from '../lib/settings';
 
 interface Props {
@@ -35,7 +37,16 @@ let inflight: AbortController | null = null;
 export function AskPage(props: Props) {
   const route = useRoute();
   if (route[1] === 'foto' && aiAllowed(props.access)) return <PhotoPage online={props.online} />;
-  return <AskMain {...props} />;
+  const detailed = route[1] === 'dettagliata';
+  return (
+    <>
+      <nav class="mode-switch" aria-label="Tipo di ricerca">
+        <a href="#chiedi" aria-current={detailed ? undefined : 'page'}>Domanda</a>
+        <a href="#chiedi/dettagliata" aria-current={detailed ? 'page' : undefined}>Ricerca dettagliata</a>
+      </nav>
+      {detailed ? <DetailedPage /> : <AskMain {...props} />}
+    </>
+  );
 }
 
 function AskMain({ online, access }: Props) {
@@ -120,7 +131,7 @@ function AskMain({ online, access }: Props) {
     setAi('web', IDLE);
     inputRef.current?.blur(); // chiude la tastiera su mobile
     try {
-      const res = await searchLocal(question);
+      const res = await searchLocal(question, { categorie: (await getSettings()).categorie });
       setAsked(question);
       setResults(res);
       addToHistory(question);
@@ -171,6 +182,10 @@ function AskMain({ online, access }: Props) {
           {busy ? <span class="spinner" aria-hidden="true" /> : <IconSend />}
         </button>
       </form>
+      <p class="search-hint small muted">
+        Suggerimento: <code>"frase esatta"</code> tra virgolette, <code>-parola</code> per escludere.
+      </p>
+      <TopicFilter />
 
       {canAi && (
         <a class="card photo-entry" href="#chiedi/foto">

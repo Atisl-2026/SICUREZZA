@@ -10,7 +10,7 @@ const isUrl = (s: string) => /^https?:\/\//i.test(s.trim());
 /** Scheda di un blocco trovato: titolo, fonte, estratto con termini evidenziati. */
 export function ResultCard({ r, index }: { r: LocalResult; index: number }) {
   const [open, setOpen] = useState(false);
-  const short = snippet(r.chunk.testo, r.terms);
+  const short = snippet(r.chunk.testo, r.terms, 320, r.phrases);
   const truncated = short.some((s) => s.text === '… ' || s.text === ' …');
 
   return (

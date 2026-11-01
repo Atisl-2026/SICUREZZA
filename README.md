@@ -168,6 +168,32 @@ supporta, l'interruttore si disattiva da solo.
 
 Le ultime domande restano in **Domande recenti** (solo sul dispositivo; si possono cancellare).
 
+### Cercare con precisione
+
+In cima alla scheda **Chiedi** si sceglie il tipo di ricerca.
+
+**Domanda** (ricerca normale, con risposta AI se disponibile):
+
+- prima compaiono i passaggi che contengono **tutte** le parole importanti, poi quelli che ne contengono solo alcune;
+- `"frase esatta"` tra virgolette: solo i passaggi con quelle parole in quell'ordine;
+- `-parola` (o `-"frase"`) per **escludere** le schede che la contengono.
+  Esempio: `ponteggio "tavola fermapiede" -trabattello`.
+
+**Ricerca dettagliata** (solo ricerca nell'archivio, funziona offline):
+
+| Campo | Significato |
+|---|---|
+| Tutte queste parole | il passaggio deve contenerle tutte |
+| Frasi esatte (una per riga) | ogni frase deve comparire così com'è |
+| Almeno una di queste parole | basta una |
+| Escludi queste parole | scarta le schede che le contengono |
+| Solo parole esatte | niente plurali, varianti o errori di battitura («ponteggio» non trova «ponteggi») |
+
+**Cerca in** (sotto la casella, in entrambe le modalità): spunte per scegliere gli argomenti —
+*Normativa, FAQ, Formazione, Generale, Procedure, Schede tecniche* e le altre categorie presenti — oppure **Tutti**.
+La scelta resta memorizzata sul telefono e vale anche per le risposte AI; il numero accanto a ogni argomento è quello
+delle schede. Per avere argomenti coerenti, usa questi nomi come *categoria* quando carichi i documenti.
+
 ### Analisi foto (con l'AI)
 
 Per il programmatore e i soci con la password AI, nella scheda **Chiedi** c'è **📷 Analizza una foto**:

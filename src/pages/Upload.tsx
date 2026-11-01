@@ -1,6 +1,7 @@
 import { useRef, useState } from 'preact/hooks';
 import { db, putRecords } from '../lib/db';
 import { useLiveQuery } from '../lib/live';
+import { withStandardTopics } from '../branding';
 import { navigate } from '../lib/route';
 import { ACCEPT, extractUpload, type UploadResult } from '../lib/upload';
 import { ensureUniqueIds } from '../shared/normalize.ts';
@@ -23,7 +24,7 @@ export function UploadPage() {
   const [reports, setReports] = useState<UploadResult[]>([]);
   const [saved, setSaved] = useState<number | null>(null);
   const input = useRef<HTMLInputElement>(null);
-  const categorie = useLiveQuery(async () => (await db.records.orderBy('categoria').uniqueKeys()) as string[]);
+  const categorie = useLiveQuery(async () => withStandardTopics((await db.records.orderBy('categoria').uniqueKeys()) as string[]));
 
   const onFiles = async (e: Event) => {
     const el = e.target as HTMLInputElement;

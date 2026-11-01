@@ -13,4 +13,14 @@ export const BRAND = {
   }
 } as const;
 
+/** Argomenti (categorie) proposti nei filtri di ricerca e nei moduli, in questo ordine. */
+export const ARGOMENTI = ['Normativa', 'FAQ', 'Formazione', 'Generale', 'Procedure', 'Schede tecniche'];
+
 export const asset = (path: string) => `${import.meta.env.BASE_URL}${path}`;
+
+/** Argomenti standard + quelli già presenti (senza doppioni, ignorando maiuscole e accenti). */
+export function withStandardTopics(existing: string[]): string[] {
+  const norm = (c: string) => c.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+  const seen = new Set(ARGOMENTI.map(norm));
+  return [...ARGOMENTI, ...existing.filter((c) => !seen.has(norm(c)) && seen.add(norm(c)))];
+}

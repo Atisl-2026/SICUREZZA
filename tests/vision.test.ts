@@ -90,7 +90,7 @@ describe('analisi completa (Gemini simulato, archivio di esempio)', () => {
 
     const { analyzePhotos } = await import('../src/lib/photo');
     const steps: string[] = [];
-    const r = await analyzePhotos([img], 'corridoio piano terra', { apiKey: 'k', model: 'gemini-2.5-flash', autoCheck: true, webCheck: false }, new AbortController().signal, (s) => steps.push(s));
+    const r = await analyzePhotos([img], 'corridoio piano terra', { apiKey: 'k', model: 'gemini-2.5-flash', autoCheck: true, webCheck: false, categorie: [] }, new AbortController().signal, (s) => steps.push(s));
 
     expect(steps).toEqual(['descrizione', 'ricerca', 'analisi']);
     expect(bodies).toHaveLength(2);
@@ -106,7 +106,7 @@ describe('analisi completa (Gemini simulato, archivio di esempio)', () => {
     const f = vi.fn(async () => new Response(JSON.stringify({ error: { code: 429, status: 'RESOURCE_EXHAUSTED' } }), { status: 429 }));
     vi.stubGlobal('fetch', f);
     const { analyzePhotos } = await import('../src/lib/photo');
-    await expect(analyzePhotos([img], '', { apiKey: 'k', model: 'm', autoCheck: true, webCheck: false }, new AbortController().signal))
+    await expect(analyzePhotos([img], '', { apiKey: 'k', model: 'm', autoCheck: true, webCheck: false, categorie: [] }, new AbortController().signal))
       .rejects.toMatchObject({ kind: 'quota' });
     expect(f).toHaveBeenCalledTimes(1);
   });

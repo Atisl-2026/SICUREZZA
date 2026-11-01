@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'preact/hooks';
 import { db, putRecords } from '../lib/db';
 import { useLiveQuery } from '../lib/live';
+import { withStandardTopics } from '../branding';
 import { navigate } from '../lib/route';
 import { parseTags, slugify } from '../shared/normalize.ts';
 import type { StoredRecord } from '../shared/types.ts';
@@ -28,7 +29,7 @@ export function RecordForm({ id }: { id?: string }) {
   const [original, setOriginal] = useState<StoredRecord | undefined>();
   const [errore, setErrore] = useState('');
   const [saving, setSaving] = useState(false);
-  const categorie = useLiveQuery(async () => (await db.records.orderBy('categoria').uniqueKeys()) as string[]);
+  const categorie = useLiveQuery(async () => withStandardTopics((await db.records.orderBy('categoria').uniqueKeys()) as string[]));
 
   useEffect(() => {
     if (!id) return;
