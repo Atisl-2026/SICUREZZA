@@ -28,6 +28,13 @@ describe('analisi del testo italiano', () => {
     expect(stemIt('estintore')).toBe(stemIt('estintori'));
     expect(stemIt('banca')).toBe(stemIt('banche'));
     expect(stemIt('elettrico')).toBe(stemIt('elettriche'));
+    expect(stemIt('ponteggio')).toBe(stemIt('ponteggi'));
+    expect(stemIt('rischio')).toBe(stemIt('rischi'));
+    expect(stemIt('obbligo')).toBe(stemIt('obblighi'));
+    expect(stemIt('ufficio')).toBe(stemIt('uffici'));
+    expect(stemIt('principio')).toBe(stemIt('principi'));
+    expect(stemIt('preposto')).toBe(stemIt('preposti'));
+    expect(stemIt('ponteggio')).not.toBe(stemIt('ponte'));
     expect(stemIt('sport')).toBe('sport');
     expect(stemIt('mf200')).toBe('mf200');
   });

@@ -62,9 +62,13 @@ export function tokenize(text: string): string[] {
  */
 export function stemIt(t: string): string {
   if (t.length < 4 || /\d/.test(t)) return t;
-  if (/[cg]h[ei]$/.test(t)) return t.slice(0, -2);
-  if (/[aeiou]$/.test(t)) return t.slice(0, -1);
-  return t;
+  let s = t;
+  // ponteggio/ponteggi, rischio/rischi, ufficio/uffici: «-io» e «-i» danno la stessa radice
+  if (/io$/.test(s) && s.length > 4) s = s.slice(0, -2);
+  else if (/[aeiou]$/.test(s)) s = s.slice(0, -1);
+  // banca/banche, rischio/rischi, obbligo/obblighi: la «h» del plurale non conta
+  if (/[cg]h$/.test(s)) s = s.slice(0, -1);
+  return s;
 }
 
 /** Normalizzazione di ogni termine (indice e domande): minuscole, senza accenti, senza stopword, stem. */
@@ -90,8 +94,8 @@ export interface SearchDoc {
   rubrica?: string;
 }
 
-// 2: categoria tra i campi memorizzati; 3: lettere e cifre attaccate separate; 4: rubriche degli articoli
-export const INDEX_FORMAT = 4;
+// 2: categoria tra i campi memorizzati; 3: lettere e cifre attaccate separate; 4: rubriche degli articoli;
+export const INDEX_FORMAT = 5; // 5: radici «-io/-i» unificate (ponteggio/ponteggi)
 
 export const SEARCH_OPTIONS: Options<SearchDoc> = {
   fields: ['titolo', 'testo', 'tag', 'categoria', 'rubrica'],

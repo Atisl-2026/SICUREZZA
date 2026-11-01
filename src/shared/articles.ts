@@ -32,7 +32,11 @@ function headingTitle(rest: string, nextLine: string): string {
     // titolo e testo sulla stessa riga ("Parapetti 1. Gli impalcati…"); altrimenti è già il testo: nessun titolo
     t = t.match(/^(.{3,90}?)\s+1[.)]\s/)?.[1] ?? '';
   }
-  return t.replace(/[\s.;:]+$/, '').replace(/^\((.*)\)$/, '$1').trim();
+  return t
+    .replace(/(\p{Ll})\d{1,3}(?=[\s.;:]*$)/u, '$1') // numero di nota attaccato: «Valutazione dei rischi99»
+    .replace(/[\s.;:]+$/, '')
+    .replace(/^\((.*)\)$/, '$1')
+    .trim();
 }
 
 const ART_INLINE = new RegExp(String.raw`Articolo\s+(\d+${SUFFIX})[ \t]+[-–][ \t]+(\p{Lu}[^\n]*)`, 'gu');
