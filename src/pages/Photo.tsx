@@ -17,10 +17,12 @@ interface PhotoState {
   error: GeminiError | null;
   /** testo dell'analisi che sta arrivando */
   partial: { text: string; results: LocalResult[] } | null;
+  /** avviso di cambio servizio AI (es. "Gemini: limite raggiunto. Provo con Groq…") */
+  avviso: string;
 }
 
 // Lo stato sopravvive al cambio di scheda; le foto non vengono salvate sul dispositivo.
-let saved: PhotoState = { photos: [], note: '', step: null, result: null, error: null, partial: null };
+let saved: PhotoState = { photos: [], note: '', step: null, result: null, error: null, partial: null, avviso: '' };
 let inflight: AbortController | null = null;
 
 const STEPS: { id: PhotoStep; label: string }[] = [
@@ -64,6 +66,7 @@ export function PhotoPage({ online }: { online: boolean }) {
   const [result, setResult] = useState(saved.result);
   const [error, setError] = useState(saved.error);
   const [partial, setPartial] = useState(saved.partial);
+  const [avviso, setAvviso] = useState(saved.avviso);
   const [prepError, setPrepError] = useState('');
   const [preparing, setPreparing] = useState(false);
   const [showBlocks, setShowBlocks] = useState(false);
@@ -78,8 +81,8 @@ export function PhotoPage({ online }: { online: boolean }) {
     return () => { mounted.current = false; };
   }, []);
   useEffect(() => {
-    saved = { photos, note, step, result, error, partial };
-  }, [photos, note, step, result, error, partial]);
+    saved = { photos, note, step, result, error, partial, avviso };
+  }, [photos, note, step, result, error, partial, avviso]);
 
   /** aggiorna anche se nel frattempo l'utente ha cambiato schermata */
   const patch = (p: Partial<PhotoState>) => {
@@ -89,6 +92,7 @@ export function PhotoPage({ online }: { online: boolean }) {
     if ('result' in p) setResult(p.result ?? null);
     if ('error' in p) setError(p.error ?? null);
     if ('partial' in p) setPartial(p.partial ?? null);
+    if ('avviso' in p) setAvviso(p.avviso ?? '');
   };
 
   const onFiles = async (e: Event) => {
@@ -124,7 +128,7 @@ export function PhotoPage({ online }: { online: boolean }) {
     inflight?.abort();
     const ctrl = new AbortController();
     inflight = ctrl;
-    patch({ result: null, error: null, partial: null, step: 'descrizione' });
+    patch({ result: null, error: null, partial: null, avviso: '', step: 'descrizione' });
     let scrolled = false;
     const scroll = () => {
       if (scrolled) return;
@@ -139,7 +143,9 @@ export function PhotoPage({ online }: { online: boolean }) {
           if (ctrl.signal.aborted || !text.trim()) return;
           patch({ partial: { text, results } });
           scroll();
-        }
+        },
+        // cambio di servizio AI: l'eventuale testo parziale ricomincia con il nuovo servizio
+        (msg) => { if (!ctrl.signal.aborted) patch({ avviso: msg, partial: null }); }
       );
       if (!ctrl.signal.aborted) {
         patch({ result: r, partial: null, step: null });
@@ -155,7 +161,7 @@ export function PhotoPage({ online }: { online: boolean }) {
     photos.forEach((p) => URL.revokeObjectURL(p.preview));
     setPhotos([]);
     setNote('');
-    patch({ result: null, error: null, partial: null, step: null });
+    patch({ result: null, error: null, partial: null, avviso: '', step: null });
   };
 
   const copy = async () => {
@@ -233,6 +239,8 @@ export function PhotoPage({ online }: { online: boolean }) {
         {!online && <p class="muted small">L'analisi delle foto richiede la connessione.</p>}
       </div>
 
+      {busy && avviso && <p class="ai-switch small" role="status">{avviso}</p>}
+
       {busy && !partial && (
         <ol class="card photo-steps" aria-live="polite">
           {STEPS.map((s, i) => {
@@ -260,7 +268,7 @@ export function PhotoPage({ online }: { online: boolean }) {
         <div ref={resultRef} class="photo-result-wrap">
           <article class="card ai-card photo-result" aria-label="Analisi in arrivo" aria-busy="true">
             <Markdown text={partial.text} ids={ids} label={(id) => String(citedIds(partial.text, ids).indexOf(id) + 1)} titleOf={(id) => titles.get(id) ?? id} />
-            <p class="muted small streaming"><span class="spinner" aria-hidden="true" /> Gemini sta scrivendo…</p>
+            <p class="muted small streaming"><span class="spinner" aria-hidden="true" /> L'AI sta scrivendo…</p>
           </article>
         </div>
       )}
@@ -280,7 +288,7 @@ export function PhotoPage({ online }: { online: boolean }) {
               <p class="notice small">Nell'archivio non ci sono schede pertinenti: le criticità indicate non hanno riferimenti normativi. Carica la normativa specifica (es. ponteggi) per avere i riferimenti.</p>
             )}
             <p class="ai-disclaimer">
-              Analisi automatica di supporto: può non vedere tutto o sbagliare. Non sostituisce il sopralluogo né la valutazione del tecnico.
+              Analisi automatica di supporto{result.answer.servizio && result.answer.servizio !== 'Gemini' ? ` (fatta da ${result.answer.servizio}${result.answer.modello ? `, ${result.answer.modello}` : ''}, AI di riserva)` : ''}: può non vedere tutto o sbagliare. Non sostituisce il sopralluogo né la valutazione del tecnico.
             </p>
             <div class="btn-row photo-actions">
               <button type="button" class="btn" onClick={copy}>Copia / condividi il testo</button>

@@ -114,6 +114,35 @@ sola il più adatto (un Flash stabile e recente), ripete la domanda e lo salva. 
 disponibili* puoi anche sceglierlo tu (per esempio un «Flash-Lite», più leggero, se la quota si esaurisce spesso).
 Alla pubblicazione successiva il modello aggiornato arriva anche ai soci con la password AI.
 
+**«Quota gratuita esaurita» ma nell'app Gemini funziona?** Sono due cose diverse: l'app Gemini (gemini.google.com)
+ha limiti suoi, mentre la chiave API ha limiti propri **per modello**, al minuto e al giorno, **condivisi da tutti i
+soci** che usano la chiave. Il messaggio ora dice quale limite è stato raggiunto (al minuto, al giorno, modello non
+incluso nel piano gratuito) e quanto aspettare; l'app prova da sola un altro modello Gemini (ha una quota separata)
+e poi le AI di riserva.
+
+### AI gratuite di riserva (Groq, Mistral, OpenRouter)
+
+In *Impostazioni → AI gratuite di riserva* il programmatore può aggiungere altre AI gratuite. Se Gemini non risponde
+(limite raggiunto, sovraccarico, lentezza) l'app passa da sola alla successiva, nell'ordine
+**Gemini → Groq → Mistral → OpenRouter**, e lo dice («Gemini: troppe richieste… Provo con Groq…»); sotto ogni risposta
+è indicata l'AI che l'ha scritta. Chi ha esaurito la quota viene saltato finché il limite non si azzera.
+
+| Servizio | Dove si crea la chiave (gratuita) | Note |
+|---|---|---|
+| **Groq** | [console.groq.com/keys](https://console.groq.com/keys) | molto veloce, senza carta di credito; limiti al minuto e al giorno |
+| **Mistral** | [console.mistral.ai/api-keys](https://console.mistral.ai/api-keys) | piano «Experiment» gratuito (verifica del telefono); sul piano gratuito i dati possono essere usati per migliorare i modelli |
+| **OpenRouter** | [openrouter.ai/settings/keys](https://openrouter.ai/settings/keys) | modelli «:free», circa 50 richieste al giorno |
+
+1. Crea la chiave, incollala nel riquadro del servizio e tocca **Verifica**: l'app mostra quali modelli userà per le
+   domande e per le foto (scelti da sola; puoi cambiarli dal menu **Modello**).
+2. Se la verifica dice «connessione non riuscita… servizio che non accetta richieste dirette dall'app», quel servizio
+   non si può usare da un'app senza server: rimuovilo e usa gli altri.
+3. **Pubblica** perché le chiavi arrivino ai soci con la password AI (cifrate, come quella di Gemini).
+
+Le chiavi seguono le stesse regole di quella di Gemini: solo sul dispositivo, mai su GitHub né nei backup, cancellate
+uscendo. La **verifica sul web** resta solo con Gemini. Le AI di riserva, soprattutto sulle foto, possono essere meno
+precise di Gemini: per questo la risposta dice sempre chi l'ha scritta.
+
 ---
 
 ## 3. Come si usa

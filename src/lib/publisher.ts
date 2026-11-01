@@ -1,3 +1,5 @@
+import { hasAi } from './router';
+import { configuredReserves } from '../shared/providers.ts';
 import { deriveKey, encryptJson, type DerivedKey, type Envelope } from '../shared/crypto.ts';
 import { commitFiles, readRepoJson } from '../shared/github.ts';
 import { compareVersions } from '../shared/normalize.ts';
@@ -100,12 +102,15 @@ export async function publish(opts: PublishOptions = {}): Promise<PublishResult>
     const settings = await getSettings();
     if (opts.aiPassword != null) {
       if (opts.aiPassword.length < 8) throw new Error('La password AI deve avere almeno 8 caratteri.');
-      if (!settings.apiKey.trim()) throw new Error('Prima inserisci la chiave Gemini (Impostazioni → Intelligenza artificiale).');
+      if (!hasAi(settings)) throw new Error('Prima inserisci la chiave Gemini o una AI di riserva (Impostazioni → Intelligenza artificiale).');
       aiKey = await deriveKey(opts.aiPassword);
     }
-    if (aiKey && settings.apiKey.trim()) {
-      // ricifrata ogni volta: così chiave o modello aggiornati arrivano anche ai soci
-      ai = await encryptJson({ apiKey: settings.apiKey.trim(), model: settings.model } satisfies AiShare, aiKey);
+    if (aiKey && hasAi(settings)) {
+      // ricifrata ogni volta: così chiavi o modello aggiornati arrivano anche ai soci
+      const share: AiShare = { apiKey: settings.apiKey.trim(), model: settings.model };
+      const riserve = Object.fromEntries(configuredReserves(settings.riserve).map((id) => [id, settings.riserve[id]!]));
+      if (Object.keys(riserve).length) share.riserve = riserve;
+      ai = await encryptJson(share, aiKey);
     } else {
       // condivisione fatta da un altro telefono: la busta resta com'è
       ai = (await getAiEnvelope()) ?? undefined;

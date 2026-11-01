@@ -1,4 +1,5 @@
-import { callGemini, GeminiError, streamGemini, type GeminiAnswer } from '../shared/gemini.ts';
+import { GeminiError, type GeminiAnswer } from '../shared/gemini.ts';
+import { runAi, type Fornitore } from './router';
 import {
   buildAnalysisRequest, buildDescribeRequest, parseDescription, photoSearchQuery,
   type PhotoDescription, type PhotoImage
@@ -6,7 +7,6 @@ import {
 import { toBlocks } from './ai';
 import { searchLocal, type LocalResult } from './search';
 import type { Settings } from './settings';
-import { withModelFallback } from './model';
 
 export const MAX_PHOTOS = 3;
 /** Foto per l'analisi: abbastanza dettaglio per leggere parapetti, tavole, ancoraggi. */
@@ -113,7 +113,8 @@ const EMPTY_DESCRIPTION: PhotoDescription = { descrizione: '', tipo_opera: '', e
 /**
  * Descrizione rapida → ricerca nell'archivio → analisi con le fonti, mostrata mentre arriva.
  * Il primo passaggio usa foto piccole e poco ragionamento (pochi secondi); se non risponde in tempo
- * si prosegue comunque cercando con la nota dell'ispettore.
+ * si prosegue comunque cercando con la nota dell'ispettore. Se Gemini non risponde si passa da soli
+ * alle AI di riserva configurate.
  */
 export async function analyzePhotos(
   images: (PhotoImage & { small?: PhotoImage })[],
@@ -121,20 +122,27 @@ export async function analyzePhotos(
   s: Settings,
   signal: AbortSignal,
   onStep: (step: PhotoStep) => void = () => {},
-  onText: (text: string, results: LocalResult[]) => void = () => {}
+  onText: (text: string, results: LocalResult[]) => void = () => {},
+  onNotice: (msg: string) => void = () => {}
 ): Promise<PhotoAnalysis> {
   if (!images.length) throw new Error('Aggiungi almeno una foto.');
-  const opts = { apiKey: s.apiKey, model: s.model, signal };
   const full = images.map((i) => ({ mimeType: i.mimeType, data: i.data }));
+  // servizi che non hanno risposto: al passo successivo si provano solo se non resta altro
+  const skip = new Set<Fornitore>();
 
   onStep('descrizione');
-  let model = s.model;
+  let prefer: Fornitore | undefined;
   let description = EMPTY_DESCRIPTION;
   try {
-    const first = await withModelFallback(s, (m) => {
-      model = m;
-      return callGemini(buildDescribeRequest(images.map(smallOf), note), { ...opts, model: m, thinking: 'minimal', timeoutMs: 25000 });
+    const first = await runAi(s, {
+      request: buildDescribeRequest(images.map(smallOf), note),
+      thinking: 'minimal',
+      timeoutMs: 20000,
+      signal,
+      skip,
+      onNotice
     });
+    prefer = first.fornitore;
     description = parseDescription(first.text);
   } catch (e) {
     // lettura rapida non riuscita per lentezza: l'analisi completa guarda comunque le foto
@@ -146,11 +154,14 @@ export async function analyzePhotos(
   const results = query ? await searchLocal(query, { limit: 10, maxPerRecord: 3 }) : [];
 
   onStep('analisi');
-  const answer = await streamGemini(buildAnalysisRequest(full, note, description, toBlocks(results)), {
-    ...opts,
-    model,
+  const answer = await runAi(s, {
+    request: buildAnalysisRequest(full, note, description, toBlocks(results)),
     thinking: 'low',
     timeoutMs: 45000, // tempo massimo di silenzio, non della risposta intera
+    signal,
+    prefer,
+    skip,
+    onNotice,
     onText: (t) => onText(t, results)
   });
   return { description, query, results, answer };

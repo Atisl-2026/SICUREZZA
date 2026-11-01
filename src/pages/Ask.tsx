@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import { DbSection, WebSection, type AiUnavailable } from '../components/Answer';
 import { IconSend } from '../components/Icons';
 import { askDatabase, askWeb, type AiState } from '../lib/ai';
+import { hasAi } from '../lib/router';
 import { aiAllowed, getAccess, type Accesso } from '../lib/access';
 import { db } from '../lib/db';
 import { addToHistory, clearHistory, removeFromHistory, useHistory } from '../lib/history';
@@ -96,20 +97,25 @@ function AskMain({ online, access }: Props) {
     const isOnline = navigator.onLine;
     const why: AiUnavailable = !aiAllowed(await getAccess())
       ? 'nonabilitato'
-      : !isOnline ? 'offline' : !s.apiKey.trim() ? 'nokey' : null;
+      : !isOnline ? 'offline' : !hasAi(s) ? 'nokey' : null;
     setUnavailable(why);
 
     const jobs: Promise<void>[] = [];
     if (only !== 'web') {
       if (!why && res.length) {
         setAi('db', { status: 'loading' });
+        let avviso: string | undefined;
         jobs.push(askDatabase(question, res, s, ctrl.signal, (partial) => {
-          if (!ctrl.signal.aborted && partial.trim()) setAi('db', { status: 'loading', partial });
+          if (!ctrl.signal.aborted && partial.trim()) setAi('db', { status: 'loading', partial, avviso });
+        }, (msg) => {
+          // cambio di servizio AI: il testo ricomincia con il nuovo servizio
+          avviso = msg;
+          if (!ctrl.signal.aborted) setAi('db', { status: 'loading', avviso });
         }).then((v) => { if (!ctrl.signal.aborted) setAi('db', v); }));
       } else setAi('db', IDLE);
     }
     if (only !== 'db') {
-      if (!why && s.webCheck) {
+      if (!why && s.webCheck && s.apiKey.trim()) {
         setAi('web', { status: 'loading' });
         jobs.push(askWeb(question, s, ctrl.signal).then((v) => {
           if (ctrl.signal.aborted) return;

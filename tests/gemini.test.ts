@@ -207,7 +207,36 @@ describe('errori HTTP', () => {
   });
 
   it('il messaggio di quota spiega cosa fare', () => {
-    expect(classifyHttpError(429, {}).message).toMatch(/riprova più tardi/i);
+    expect(classifyHttpError(429, {}).message).toMatch(/riprova tra un minuto/i);
+    expect(classifyHttpError(429, {}).message).toMatch(/separato da quello dell'app Gemini/);
+  });
+
+  // forma reale del 429 dell'API Gemini (QuotaFailure + RetryInfo)
+  const quota429 = (quotaId: string, value: string, delay = '39s') => ({
+    error: {
+      code: 429,
+      status: 'RESOURCE_EXHAUSTED',
+      message: `You exceeded your current quota, please check your plan and billing details.\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: ${value}, model: gemini-2.5-flash\nPlease retry in 39.6s.`,
+      details: [
+        { '@type': 'type.googleapis.com/google.rpc.QuotaFailure', violations: [{ quotaMetric: 'generativelanguage.googleapis.com/generate_content_free_tier_requests', quotaId, quotaDimensions: { location: 'global', model: 'gemini-2.5-flash' }, quotaValue: value }] },
+        { '@type': 'type.googleapis.com/google.rpc.RetryInfo', retryDelay: delay }
+      ]
+    }
+  });
+
+  it('limite al minuto: quale modello, quante richieste, quanto aspettare', () => {
+    const e = classifyHttpError(429, quota429('GenerateRequestsPerMinutePerProjectPerModel-FreeTier', '10'));
+    expect(e.kind).toBe('quota');
+    expect(e.quota).toEqual({ periodo: 'minuto', limite: 10, modello: 'gemini-2.5-flash', attesaS: 39 });
+    expect(e.message).toMatch(/troppe richieste in un minuto.*gemini-2\.5-flash.*massimo 10 al minuto.*Riprova tra 39 secondi/);
+  });
+
+  it('limite giornaliero e modello escluso dal piano gratuito', () => {
+    const day = classifyHttpError(429, quota429('GenerateRequestsPerDayPerProjectPerModel-FreeTier', '250'));
+    expect(day.quota).toMatchObject({ periodo: 'giorno', limite: 250 });
+    expect(day.message).toMatch(/limite giornaliero gratuito.*250 richieste al giorno.*9 del mattino/);
+    const zero = classifyHttpError(429, quota429('GenerateRequestsPerDayPerProjectPerModel-FreeTier', '0'));
+    expect(zero.message).toMatch(/non è incluso nel piano gratuito/);
   });
 
   it('disattiva la verifica web per quota e modello/strumento non supportato, non per errori temporanei', () => {

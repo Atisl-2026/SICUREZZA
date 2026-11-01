@@ -1,4 +1,5 @@
 import { DEFAULT_MODEL } from '../shared/gemini.ts';
+import type { Reserves } from '../shared/providers.ts';
 import { getMeta, setMeta } from './db';
 import { useLiveQuery } from './live';
 
@@ -13,6 +14,8 @@ export interface Settings {
   model: string;
   /** Argomenti in cui cercare (vuoto = tutti). */
   categorie: string[];
+  /** AI gratuite di riserva (Groq, Mistral, OpenRouter): chiavi salvate solo su questo dispositivo. */
+  riserve: Reserves;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -20,7 +23,8 @@ export const DEFAULT_SETTINGS: Settings = {
   webCheck: false,
   apiKey: '',
   model: DEFAULT_MODEL,
-  categorie: []
+  categorie: [],
+  riserve: {}
 };
 
 export async function getSettings(): Promise<Settings> {

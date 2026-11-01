@@ -104,6 +104,9 @@ export interface GeminiAnswer {
   searchQueries: string[];
   /** HTML dei "suggerimenti di ricerca" di Google (da mostrare quando si usa il grounding). */
   searchEntryPoint?: string;
+  /** servizio AI che ha risposto (es. "Gemini", "Groq") e modello usato */
+  servizio?: string;
+  modello?: string;
 }
 
 interface RawPart { text?: string; thought?: boolean }
@@ -195,19 +198,90 @@ export type GeminiErrorKind =
   | 'annullata'
   | 'sconosciuto';
 
+/** Dettagli di un errore 429 (limiti della chiave API, diversi da quelli dell'app Gemini). */
+export interface QuotaInfo {
+  /** quale limite: richieste al minuto, al giorno, dati (token) al minuto */
+  periodo: 'minuto' | 'giorno' | 'token' | 'sconosciuto';
+  /** valore del limite (0 = modello non incluso nel piano gratuito) */
+  limite?: number;
+  /** modello a cui si riferisce il limite */
+  modello?: string;
+  /** secondi da attendere indicati da Google */
+  attesaS?: number;
+}
+
 export class GeminiError extends Error {
   kind: GeminiErrorKind;
   status?: number;
-  constructor(kind: GeminiErrorKind, message: string, status?: number) {
+  quota?: QuotaInfo;
+  constructor(kind: GeminiErrorKind, message: string, status?: number, quota?: QuotaInfo) {
     super(message);
     this.name = 'GeminiError';
     this.kind = kind;
     this.status = status;
+    if (quota) this.quota = quota;
   }
 }
 
 interface RawError {
-  error?: { code?: number; message?: string; status?: string; details?: { reason?: string }[] };
+  error?: {
+    code?: number;
+    message?: string;
+    status?: string;
+    details?: {
+      '@type'?: string;
+      reason?: string;
+      retryDelay?: string;
+      violations?: { quotaMetric?: string; quotaId?: string; quotaValue?: string; quotaDimensions?: Record<string, string> }[];
+    }[];
+  };
+}
+
+/** Legge dal 429 di Google quale limite è stato superato (QuotaFailure, RetryInfo, testo del messaggio). */
+export function parseQuota(body: unknown): QuotaInfo {
+  const err = (body as RawError)?.error ?? {};
+  const msg = err.message ?? '';
+  const details = err.details ?? [];
+  const violations = details.filter((d) => /QuotaFailure/.test(d['@type'] ?? '')).flatMap((d) => d.violations ?? []);
+  // se ce ne sono più d'una, conta quella giornaliera (è la più vincolante)
+  const v = violations.find((x) => /PerDay/i.test(x.quotaId ?? '')) ?? violations[0];
+  const id = `${v?.quotaId ?? ''} ${v?.quotaMetric ?? ''}`;
+  const periodo: QuotaInfo['periodo'] = /token/i.test(id)
+    ? 'token'
+    : /PerDay|per_day|daily/i.test(id) ? 'giorno'
+      : /PerMinute|per_minute/i.test(id) ? 'minuto'
+        : /per day|daily|\bRPD\b|\bTPD\b/i.test(msg) ? 'giorno'
+          : /tokens per minute|\bTPM\b/i.test(msg) ? 'token'
+            : /per minute|\bRPM\b/i.test(msg) ? 'minuto' : 'sconosciuto';
+  const num = (x: string | undefined) => (x != null && x !== '' && Number.isFinite(Number(x)) ? Number(x) : undefined);
+  const limite = num(v?.quotaValue) ?? num(msg.match(/limit:?\s*(\d+)/i)?.[1]);
+  const modello = v?.quotaDimensions?.model ?? msg.match(/model:?\s*`?([\w./:-]*\w)/i)?.[1];
+  const delay = details.find((d) => d.retryDelay)?.retryDelay ?? msg.match(/(?:retry|try again) in\s*([\d.]+)\s*s/i)?.[1];
+  const attesaS = delay ? Math.ceil(parseFloat(delay)) : undefined;
+  const q: QuotaInfo = { periodo };
+  if (limite !== undefined) q.limite = limite;
+  if (modello) q.modello = modello;
+  if (attesaS !== undefined && Number.isFinite(attesaS)) q.attesaS = attesaS;
+  return q;
+}
+
+/** Messaggio chiaro per un limite superato (nome = servizio AI). */
+export function quotaMessage(q: QuotaInfo, nome = 'Gemini'): string {
+  const mod = q.modello ? ` del modello «${q.modello}»` : '';
+  const tra = q.attesaS ? ` Riprova tra ${q.attesaS} secondi.` : ' Riprova tra un minuto.';
+  if (q.limite === 0) {
+    return `${nome}: il modello${q.modello ? ` «${q.modello}»` : ' scelto'} non è incluso nel piano gratuito della chiave API: scegline un altro${nome === 'Gemini' ? ' (Impostazioni → Modello, meglio un «Flash»)' : ''}.`;
+  }
+  if (q.periodo === 'giorno') {
+    return `${nome}: raggiunto il limite giornaliero gratuito${mod}${q.limite ? ` (${q.limite} richieste al giorno)` : ''}.${nome === 'Gemini' ? ' Si azzera ogni giorno verso le 9 del mattino (ora italiana).' : ''}`;
+  }
+  if (q.periodo === 'minuto') {
+    return `${nome}: troppe richieste in un minuto per il piano gratuito${mod}${q.limite ? ` (massimo ${q.limite} al minuto)` : ''}.${tra}`;
+  }
+  if (q.periodo === 'token') {
+    return `${nome}: troppi dati inviati in un minuto (foto o testi lunghi) per il piano gratuito.${tra}`;
+  }
+  return `${nome}: limite di utilizzo della chiave API raggiunto${nome === 'Gemini' ? " (è separato da quello dell'app Gemini)" : ''}.${tra}`;
 }
 
 /** Converte una risposta HTTP di errore in un GeminiError con messaggio chiaro in italiano. */
@@ -221,7 +295,8 @@ export function classifyHttpError(status: number, body: unknown): GeminiError {
     return new GeminiError('chiave', 'La chiave API Gemini non è valida o è scaduta. Controllala nelle Impostazioni.', status);
   }
   if (status === 429 || err.status === 'RESOURCE_EXHAUSTED') {
-    return new GeminiError('quota', 'Quota gratuita di Gemini esaurita per ora: riprova più tardi (i limiti si azzerano ogni minuto o ogni giorno).', status);
+    const q = parseQuota(body);
+    return new GeminiError('quota', quotaMessage(q), status, q);
   }
   if (has(/location is not supported|not available in your (country|region)/i)) {
     return new GeminiError('regione', "L'API Gemini non è disponibile nel paese da cui ti colleghi.", status);

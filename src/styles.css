@@ -680,3 +680,13 @@ a.link-btn.apk-link { display: inline-flex; align-items: center; justify-content
 .result-article { margin-top: 6px; font-size: 0.85rem; font-weight: 600; color: var(--primary); overflow-wrap: anywhere; }
 .cited-meta { font-size: 0.8rem; color: var(--text-muted); overflow-wrap: anywhere; margin-top: 2px; }
 .cited li { margin-bottom: 6px; }
+
+/* più AI: avvisi di cambio servizio ed errori su più righe */
+.ai-error span { white-space: pre-line; }
+.ai-switch { margin: 0 0 8px; color: var(--text-muted); white-space: pre-line; }
+.ai-switch::before { content: "↻ "; color: var(--primary); }
+
+/* AI di riserva */
+.reserve { border-top: 1px solid var(--border); padding: 10px 0; }
+.reserve > summary { display: flex; align-items: center; gap: 8px; cursor: pointer; min-height: 44px; }
+.reserve > summary strong { flex: 1; }

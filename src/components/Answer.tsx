@@ -50,9 +50,11 @@ export function DbSection({ results, ai, unavailable, recordCount, onRetry }: Db
         </p>
       )}
 
+      {ai.status === 'loading' && ai.avviso && <p class="ai-switch small" role="status">{ai.avviso}</p>}
+
       {ai.status === 'loading' && !ai.partial && (
         <div class="card ai-card ai-loading" role="status">
-          <span class="spinner" aria-hidden="true" /> Gemini sta leggendo i {results.length} blocchi trovati…
+          <span class="spinner" aria-hidden="true" /> L'AI sta leggendo i {results.length} blocchi trovati…
         </div>
       )}
 
@@ -64,7 +66,7 @@ export function DbSection({ results, ai, unavailable, recordCount, onRetry }: Db
             label={(id) => String(citedIds(ai.partial!, ids).indexOf(id) + 1)}
             titleOf={(id) => titles.get(id) ?? id}
           />
-          <p class="muted small streaming"><span class="spinner" aria-hidden="true" /> Gemini sta scrivendo…</p>
+          <p class="muted small streaming"><span class="spinner" aria-hidden="true" /> L'AI sta scrivendo…</p>
         </article>
       )}
 
@@ -89,7 +91,9 @@ export function DbSection({ results, ai, unavailable, recordCount, onRetry }: Db
           {ai.answer.truncated && <p class="muted small">(risposta troncata per lunghezza)</p>}
           <CitedDocs cited={cited} results={results} title="Documenti citati" />
           {cited.length === 0 && <p class="muted small">La risposta non cita record specifici: verifica nei blocchi qui sotto.</p>}
-          <p class="ai-disclaimer">Risposta generata da Gemini sui contenuti del database: verifica sempre le fonti.</p>
+          <p class="ai-disclaimer">
+            Risposta generata da {ai.answer.servizio ?? 'Gemini'}{ai.answer.servizio && ai.answer.servizio !== 'Gemini' && ai.answer.modello ? ` (${ai.answer.modello}, AI di riserva)` : ''} sui contenuti del database: verifica sempre le fonti.
+          </p>
         </article>
       )}
 

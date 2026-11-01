@@ -1,6 +1,7 @@
 import {
-  buildDbRequest, buildWebRequest, callGemini, GeminiError, streamGemini, type ContextBlock, type GeminiAnswer
+  buildDbRequest, buildWebRequest, callGemini, GeminiError, type ContextBlock, type GeminiAnswer
 } from '../shared/gemini.ts';
+import { runAi } from './router';
 import type { LocalResult } from './search';
 import { articlesForChunk, findHeadings, type ChunkArticles, type Heading } from '../shared/articles.ts';
 import type { Settings } from './settings';
@@ -8,7 +9,7 @@ import { withModelFallback } from './model';
 
 export type AiState =
   | { status: 'idle' }
-  | { status: 'loading'; /** testo che sta arrivando */ partial?: string }
+  | { status: 'loading'; /** testo che sta arrivando */ partial?: string; /** es. cambio di servizio AI */ avviso?: string }
   | { status: 'done'; answer: GeminiAnswer }
   | { status: 'error'; error: GeminiError; disabledWeb?: boolean };
 
@@ -66,15 +67,20 @@ export async function askDatabase(
   results: LocalResult[],
   s: Settings,
   signal: AbortSignal,
-  onPartial: (text: string) => void = () => {}
+  onPartial: (text: string) => void = () => {},
+  onNotice: (msg: string) => void = () => {}
 ): Promise<AiState> {
   try {
-    // in tempo reale: il testo compare mentre Gemini lo scrive; il tempo massimo vale per il silenzio
-    const answer = await withModelFallback(s, (model) =>
-      streamGemini(buildDbRequest(question, toBlocks(results)), {
-        apiKey: s.apiKey, model, timeoutMs: 40000, signal, thinking: 'low', onText: onPartial
-      })
-    );
+    // in tempo reale: il testo compare mentre l'AI lo scrive; il tempo massimo vale per il silenzio.
+    // Se Gemini non risponde si passa da soli alle AI di riserva configurate.
+    const answer = await runAi(s, {
+      request: buildDbRequest(question, toBlocks(results)),
+      timeoutMs: 40000,
+      signal,
+      thinking: 'low',
+      onText: onPartial,
+      onNotice
+    });
     return { status: 'done', answer };
   } catch (e) {
     return { status: 'error', error: asGeminiError(e) };

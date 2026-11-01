@@ -1,3 +1,4 @@
+import { hasAi } from '../lib/router';
 import { useState } from 'preact/hooks';
 import { getAiEnvelope, type Accesso } from '../lib/access';
 import { useLiveQuery } from '../lib/live';
@@ -79,17 +80,17 @@ export function AdminSecurity({ access, online }: { access: Accesso; online: boo
       <h4 class="subhead">Risposte AI per i soci</h4>
       <p class="muted small">
         {sharing
-          ? 'Attiva: i soci con la password AI usano la tua chiave Gemini (i limiti gratuiti sono condivisi). Per toglierla a qualcuno, cambia la password AI.'
-          : 'Non attiva: solo tu usi le risposte AI. Con una password AI la tua chiave Gemini viene condivisa, cifrata, con chi la conosce.'}
+          ? 'Attiva: i soci con la password AI usano le tue chiavi (Gemini e AI di riserva; i limiti gratuiti sono condivisi tra tutti). Per toglierla a qualcuno, cambia la password AI. Dopo aver aggiunto una AI di riserva, pubblica perché arrivi anche ai soci.'
+          : 'Non attiva: solo tu usi le risposte AI. Con una password AI le tue chiavi (Gemini e AI di riserva) vengono condivise, cifrate, con chi la conosce.'}
       </p>
-      {!settings.apiKey && <p class="notice small">Per condividere l'AI inserisci prima la tua chiave Gemini qui sopra.</p>}
+      {!hasAi(settings) && <p class="notice small">Per condividere l'AI inserisci prima la chiave Gemini o una AI di riserva qui sopra.</p>}
       <NewPassword
         label={sharing ? 'Nuova password AI' : 'Password AI'}
         button={sharing ? 'Cambia password AI' : 'Condividi l\'AI con questa password'}
-        disabled={!online || !settings.apiKey}
+        disabled={!online || !hasAi(settings)}
         onSubmit={(pw) => run({ aiPassword: pw }, sharing
           ? 'Cambiare la password AI?\n\nChi aveva quella vecchia perderà le risposte AI finché non inserisce la nuova.'
-          : 'Condividere la tua chiave Gemini con chi conosce questa password?')}
+          : 'Condividere le tue chiavi AI con chi conosce questa password?')}
       />
       {sharing && (
         <button
