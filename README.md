@@ -269,8 +269,10 @@ Per il programmatore e i soci con la password AI, nella scheda **Chiedi** c'è *
 2. **Analizza**: l'app
    - riduce le foto (lato lungo 1280 px, più una copia da 640 px) e **toglie i dati nascosti** (posizione GPS,
      modello del telefono);
-   - con le copie piccole chiede a Gemini, in pochi secondi, che cosa si vede e quali parole chiave cercare;
-   - cerca quelle parole **nell'archivio** (normativa, procedure, schede);
+   - con le copie piccole chiede all'AI, in pochi secondi, che cosa si vede e quali sono le **possibili criticità**
+     (es. «parapetto mancante sul ponteggio», «deposito di materiali sull'impalcato»);
+   - cerca **ogni criticità separatamente** nell'archivio, con i sinonimi tecnici della normativa (impalcato →
+     impalcature, mantovana → parasassi, casco → elmetto/DPI…), e passa all'AI fino a 12 brani;
    - chiede a Gemini di confrontare le foto con i brani trovati: **la risposta compare mentre viene scritta**,
      come nell'app di Gemini, senza aspettare la fine.
 3. La risposta ha sempre quattro parti: **Cosa si vede**, **Possibili non conformità** (con gravità e riferimento
@@ -278,6 +280,8 @@ Per il programmatore e i soci con la password AI, nella scheda **Chiedi** c'è *
    apre la scheda dell'archivio; se la norma non è nell'archivio lo dice, senza inventare articoli),
    **Non valutabile dalle immagini**, **Verifiche consigliate sul posto**. Sotto, i **documenti citati** con gli articoli
    dei brani consultati e la fonte; ogni brano consultato mostra l'articolo a cui appartiene.
+   Se una criticità resta «non presente nell'archivio», l'app cerca comunque da sola gli articoli che la riguardano e
+   li mostra sotto la risposta in **Possibili riferimenti nell'archivio (da verificare)**, in verde e cliccabili.
 4. **Copia / condividi il testo** per incollarlo in un verbale o in un messaggio.
 
 Da sapere:

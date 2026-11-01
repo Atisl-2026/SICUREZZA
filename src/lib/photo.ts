@@ -1,11 +1,13 @@
 import { GeminiError, type GeminiAnswer } from '../shared/gemini.ts';
 import { runAi, type Fornitore } from './router';
 import {
-  buildAnalysisRequest, buildDescribeRequest, parseDescription, photoSearchQuery,
+  buildAnalysisRequest, buildDescribeRequest, findingsOf, parseDescription, photoSearchQuery,
   type PhotoDescription, type PhotoImage
 } from '../shared/vision.ts';
 import { toBlocks } from './ai';
+import { passageInfo } from './articles';
 import { searchLocal, type LocalResult } from './search';
+import { expandSynonyms } from '../shared/search.ts';
 import type { Settings } from './settings';
 
 export const MAX_PHOTOS = 3;
@@ -101,6 +103,67 @@ export interface PhotoAnalysis {
   query: string;
   results: LocalResult[];
   answer: GeminiAnswer;
+  /** criticità rimaste senza riferimento: articoli dell'archivio trovati dall'app (da verificare) */
+  suggerimenti?: FindingRefs[];
+}
+
+export interface FindingRefs {
+  titolo: string;
+  results: LocalResult[];
+}
+
+const MAX_BLOCKS = 12;
+
+/** Toglie le pagine d'indice dei PDF (molte intestazioni in un solo brano), se resta altro. */
+function notIndex(list: LocalResult[]): LocalResult[] {
+  const ok = list.filter((r) => passageInfo(r).articoli.length <= 4);
+  return ok.length ? ok : list;
+}
+
+/**
+ * Brani per l'analisi: ogni criticità del primo esame si cerca da sola nell'archivio
+ * («parapetto mancante sul ponteggio» → Art. 126), più una ricerca generale sulla foto.
+ * I risultati si alternano (il primo di ogni criticità, poi il secondo…) fino a 12 brani.
+ */
+export async function photoRetrieval(desc: PhotoDescription, note: string): Promise<{ query: string; results: LocalResult[] }> {
+  const crit = (desc.criticita ?? []).filter((c) => c.trim());
+  const general = photoSearchQuery(desc, note);
+  const queries = [...crit, general].filter((q) => q.trim());
+  if (!queries.length) return { query: '', results: [] };
+  const lists = await Promise.all(queries.map(async (q, i) =>
+    notIndex(await searchLocal(expandSynonyms(q), { limit: i < crit.length ? 5 : 8, maxPerRecord: 4 })).slice(0, i < crit.length ? 3 : 6)));
+  const out: LocalResult[] = [];
+  const seen = new Set<string>();
+  for (let k = 0; k < 6 && out.length < MAX_BLOCKS; k++) {
+    for (const list of lists) {
+      const r = list[k];
+      if (!r || seen.has(r.chunkId)) continue;
+      seen.add(r.chunkId);
+      out.push(r);
+      if (out.length >= MAX_BLOCKS) break;
+    }
+  }
+  return { query: crit.length ? crit.join(' · ') : general, results: out };
+}
+
+/** Per le criticità senza riferimento: gli articoli dell'archivio che le riguardano (ricerca locale, nessuna AI). */
+export async function suggestReferences(answer: string): Promise<FindingRefs[]> {
+  const out: FindingRefs[] = [];
+  for (const f of findingsOf(answer).filter((x) => x.senzaRiferimento)) {
+    // prima il solo titolo (più preciso), poi titolo e descrizione
+    const search = async (q: string) => notIndex(await searchLocal(expandSynonyms(q), { limit: 6, maxPerRecord: 3 }))
+      .filter((r) => passageInfo(r).articoli.some((a) => a.conParola));
+    const byTitle = await search(f.titolo);
+    // un risultato per articolo (lo stesso articolo può comparire in più brani)
+    const seen = new Set<string>();
+    const found = (byTitle.length ? byTitle : await search(f.query)).filter((r) => {
+      const top = passageInfo(r).articoli[0];
+      const k = `${r.record.id}:${top?.section.pos}`;
+      return !seen.has(k) && !!seen.add(k);
+    }).slice(0, 2);
+    if (found.length) out.push({ titolo: f.titolo, results: found });
+  }
+  return out;
 }
 
 /** Copia piccola della foto (se esiste), altrimenti la foto stessa. */
@@ -151,8 +214,7 @@ export async function analyzePhotos(
   }
 
   onStep('ricerca');
-  const query = photoSearchQuery(description, note);
-  const results = query ? await searchLocal(query, { limit: 10, maxPerRecord: 3 }) : [];
+  const { query, results } = await photoRetrieval(description, note);
 
   onStep('analisi');
   const answer = await runAi(s, {
@@ -165,7 +227,9 @@ export async function analyzePhotos(
     onNotice,
     onText: (t) => onText(t, results)
   });
-  return { description, query, results, answer };
+  // criticità che l'AI non ha collegato a una norma: l'app cerca da sola gli articoli che le riguardano
+  const suggerimenti = await suggestReferences(answer.text).catch(() => []);
+  return { description, query, results, answer, ...(suggerimenti.length ? { suggerimenti } : {}) };
 }
 
 export function asGeminiError(e: unknown): GeminiError {

@@ -79,6 +79,46 @@ export function processTerm(term: string): string | null {
   return stemIt(t);
 }
 
+// ============================================================ sinonimi tecnici
+
+/**
+ * Sinonimi della sicurezza nei cantieri: la normativa usa spesso parole diverse da quelle che usa
+ * chi descrive una foto («impalcato» / «impalcature», «mantovana» / «parasassi»). Usati per cercare
+ * le norme a partire dalle criticità di una foto.
+ */
+const SINONIMI: string[][] = [
+  ['impalcato', 'impalcatura', 'ponte di servizio'],
+  ['mantovana', 'parasassi'],
+  ['parapetto', 'parapetti'],
+  ['fermapiede', 'tavola fermapiede'],
+  ['casco', 'elmetto', 'copricapo', 'dispositivi di protezione individuale'],
+  ['imbracatura', 'cintura di sicurezza', 'dispositivo anticaduta'],
+  ['ancoraggio', 'ancorato'],
+  ['trabattello', 'ponte su ruote'],
+  ['scala', 'scala portatile'],
+  ['scavo', 'parete dello scavo', 'armatura'],
+  ['carriola', 'materiale', 'deposito'],
+  ['materiale', 'deposito'],
+  ['dpi', 'dispositivi di protezione individuale'],
+  ['guanto', 'dispositivi di protezione individuale'],
+  ['estintore', 'antincendio'],
+  ['recinzione', 'delimitazione'],
+  ['segnaletica', 'cartello'],
+  ['cavo', 'impianto elettrico'],
+  ['quadro elettrico', 'impianto elettrico']
+];
+
+/** Aggiunge alla ricerca i sinonimi tecnici delle parole presenti. */
+export function expandSynonyms(q: string): string {
+  const stems = new Set(tokenize(q).map((w) => processTerm(w)).filter(Boolean) as string[]);
+  const extra = new Set<string>();
+  for (const group of SINONIMI) {
+    const hit = group.some((g) => tokenize(g).every((w) => { const p = processTerm(w); return !p || stems.has(p); }));
+    if (hit) for (const g of group) extra.add(g);
+  }
+  return extra.size ? `${q} ${[...extra].join(' ')}` : q;
+}
+
 // ============================================================ indice
 
 /** Documento indicizzato: un blocco con i dati del record padre. */

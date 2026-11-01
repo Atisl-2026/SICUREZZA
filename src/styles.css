@@ -729,3 +729,6 @@ a.art-ref:hover { text-decoration: underline; }
 .article-nav { justify-content: space-between; margin: 12px 0; }
 .doc-picker { margin: 10px 0 0; }
 .doc-picker select { width: 100%; }
+.suggest li { margin-bottom: 10px; }
+.suggest .result-articles { margin-top: 4px; }
+.art-doc { font-weight: 400; opacity: 0.85; }

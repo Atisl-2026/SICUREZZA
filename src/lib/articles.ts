@@ -36,6 +36,8 @@ export interface PassageArticle {
   section: Section;
   /** la parola cercata compare in questo articolo (dentro il brano) */
   conParola: boolean;
+  /** quante parole cercate compaiono nell'articolo (dentro il brano); la rubrica conta doppio */
+  hits: number;
   /** collegamento al testo ufficiale online, se disponibile */
   online?: string;
 }
@@ -58,14 +60,17 @@ export function passageInfo(r: LocalResult): PassageInfo {
   const first = sectionAt(sections, start);
   if (first) touched.push(first);
   for (const s of sections) if (s.pos > start && s.pos < end) touched.push(s);
-  const withWord = new Set<Section>();
+  const hits = new Map<Section, number>();
   for (const [a] of matchRanges(r.chunk.testo, r.terms)) {
     const s = sectionAt(touched, start + a);
-    if (s) withWord.add(s);
+    if (!s) continue;
+    // nella rubrica («Art. 124 – Deposito di materiali sulle impalcature») la parola pesa di più
+    const inHead = start + a >= s.pos && start + a < s.pos + s.headLen;
+    hits.set(s, (hits.get(s) ?? 0) + (inHead ? 2 : 1));
   }
   const articoli = touched
-    .map((section) => ({ section, conParola: withWord.has(section), online: onlineArticleUrl(r.record, section, sections) }))
-    .sort((a, b) => Number(b.conParola) - Number(a.conParola));
+    .map((section) => ({ section, conParola: hits.has(section), hits: hits.get(section) ?? 0, online: onlineArticleUrl(r.record, section, sections) }))
+    .sort((a, b) => b.hits - a.hits);
   const headRanges = touched
     .filter((s) => s.pos >= start)
     .map((s): [number, number] => [s.pos - start, Math.min(s.pos - start + s.headLen, r.chunk.testo.length)]);

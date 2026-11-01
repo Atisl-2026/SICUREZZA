@@ -2,7 +2,9 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import { Markdown } from '../components/Markdown';
 import { ResultCard } from '../components/ResultCard';
 import { CitedDocs } from '../components/CitedDocs';
-import { articlesByRecord, resolveArticle } from '../lib/articles';
+import { ArticleBadges } from '../components/ArticleBadges';
+import { articlesByRecord, passageInfo, resolveArticle } from '../lib/articles';
+import { headingText } from '../shared/articles.ts';
 import { analyzePhotos, asGeminiError, MAX_PHOTOS, preparePhoto, type PhotoAnalysis, type PhotoStep, type PreparedPhoto } from '../lib/photo';
 import { getSettings } from '../lib/settings';
 import { citedIds, splitCitations, type GeminiError } from '../shared/gemini.ts';
@@ -50,11 +52,20 @@ function plainReport(r: PhotoAnalysis, note: string): string {
     ].filter(Boolean).join('; ');
     return `${i + 1}. ${rec.titolo}${extra ? ` (${extra})` : ''}`;
   });
+  const sugg = (r.suggerimenti ?? []).map((x) => {
+    const arts = x.results.flatMap((res) => {
+      const info = passageInfo(res);
+      const w = info.articoli.filter((a) => a.conParola);
+      return (w.length ? w : info.articoli.slice(0, 1)).slice(0, 1).map((a) => `${headingText(a.section)} (${res.record.titolo})`);
+    });
+    return `- ${x.titolo}: ${[...new Set(arts)].join('; ')}`;
+  });
   const date = new Date().toLocaleString('it-IT', { dateStyle: 'short', timeStyle: 'short' });
   return [
     `${BRAND.nome} – Analisi foto del ${date}${note ? `\nOggetto: ${note}` : ''}`,
     body.trim(),
     docs.length ? `Documenti dell'archivio citati:\n${docs.join('\n')}` : '',
+    sugg.length ? `Possibili riferimenti nell'archivio (da verificare):\n${sugg.join('\n')}` : '',
     'Analisi automatica di supporto: non sostituisce il sopralluogo né la valutazione del tecnico.'
   ].filter(Boolean).join('\n\n');
 }
@@ -287,7 +298,21 @@ export function PhotoPage({ online }: { online: boolean }) {
             />
             {result.answer.truncated && <p class="muted small">(risposta troncata per lunghezza)</p>}
             <CitedDocs cited={cited} results={result.results} title="Documenti dell'archivio citati" />
-            {result.results.length === 0 && (
+            {result.suggerimenti && result.suggerimenti.length > 0 && (
+              <div class="cited suggest">
+                <h4>Possibili riferimenti nell'archivio (da verificare)</h4>
+                <p class="small muted">Per le criticità rimaste senza riferimento l'app ha cercato da sola nell'archivio:</p>
+                <ol>
+                  {result.suggerimenti.map((x) => (
+                    <li key={x.titolo}>
+                      <strong>{x.titolo}</strong>
+                      {x.results.map((r) => <ArticleBadges key={r.chunkId} r={r} withDoc max={1} />)}
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            )}
+            {result.results.length === 0 && !result.suggerimenti?.length && (
               <p class="notice small">Nell'archivio non ci sono schede pertinenti: le criticità indicate non hanno riferimenti normativi. Carica la normativa specifica (es. ponteggi) per avere i riferimenti.</p>
             )}
             <p class="ai-disclaimer">

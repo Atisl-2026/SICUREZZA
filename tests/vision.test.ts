@@ -61,7 +61,7 @@ describe('lettura della descrizione', () => {
   });
   it('campi mancanti o sbagliati non rompono nulla', () => {
     expect(parseDescription('{"descrizione": "x", "parole_chiave": "non una lista"}')).toEqual({
-      descrizione: 'x', tipo_opera: '', elementi: [], parole_chiave: [], limiti: ''
+      descrizione: 'x', tipo_opera: '', elementi: [], parole_chiave: [], criticita: [], limiti: ''
     });
   });
   it('query di ricerca: nota, tipo di opera e parole chiave senza doppioni', () => {
@@ -161,5 +161,57 @@ describe('analisi completa (Gemini simulato, archivio di esempio)', () => {
       .rejects.toMatchObject({ kind: 'quota' });
     // una sola richiesta di generazione (più l'elenco dei modelli, per provarne uno con quota propria)
     expect(f.mock.calls.filter((c) => /generateContent/i.test(String((c as unknown[])[0])))).toHaveLength(1);
+  });
+});
+
+describe('criticità: ricerca per singola criticità e riferimenti suggeriti', () => {
+  const risposta = `### Cosa si vede
+Ponteggio metallico.
+
+### Possibili non conformità
+1. **Assenza o incompletezza dei parapetti di protezione sul ponteggio** — Gli impalcati sembrano privi di parapetti completi. *Gravità*: alta. *Riferimento*: non presente nell'archivio.
+2. **Mancanza di mantovana parasassi** — Non si vedono mantovane. *Gravità*: media. *Riferimento*: Art. 129 – «Testo unico» [tu81]
+3. **Materiali depositati sull'impalcato** — Carriola e materiali sul ponte. *Gravità*: media. *Riferimento*: "non presente nell'archivio"
+
+### Non valutabile dalle immagini
+- Ancoraggi`;
+
+  it('legge le criticità della risposta e quelle senza riferimento', async () => {
+    const { findingsOf } = await import('../src/shared/vision.ts');
+    const f = findingsOf(risposta);
+    expect(f.map((x) => x.titolo)).toEqual([
+      'Assenza o incompletezza dei parapetti di protezione sul ponteggio', 'Mancanza di mantovana parasassi', 'Materiali depositati sull\'impalcato'
+    ]);
+    expect(f.map((x) => x.senzaRiferimento)).toEqual([true, false, true]);
+    expect(f[0].query).toMatch(/parapetti.*ponteggio.*impalcati/);
+    expect(f[0].query).not.toMatch(/Gravit/);
+  });
+
+  it('l\'archivio viene cercato criticità per criticità; i riferimenti mancanti vengono suggeriti', async () => {
+    const { clearAll, putRecords } = await import('../src/lib/db');
+    await clearAll();
+    const lungo = (x: string) => `${x} `.repeat(12).trim();
+    const testo = [
+      `Articolo 122 - Ponteggi ed opere provvisionali\n1. ${lungo('Nei lavori in quota devono essere adottate adeguate impalcature o ponteggi.')}`,
+      `Articolo 124 - Deposito di materiali sulle impalcature\n1. ${lungo('Sopra i ponti di servizio e sulle impalcature è vietato qualsiasi deposito, eccettuato quello temporaneo dei materiali ed attrezzi necessari ai lavori.')}`,
+      `Articolo 126 - Parapetti\n1. ${lungo('Gli impalcati e ponti di servizio posti ad altezza maggiore di 2 metri devono essere provvisti di parapetto e tavola fermapiede.')}`,
+      `Articolo 129 - Impalcature nelle costruzioni\n1. ${lungo('Il ponteggio deve essere munito di mantovana parasassi a protezione contro la caduta di materiali.')}`
+    ].join('\n\n');
+    await putRecords([{ id: 'tu81', titolo: 'D.lgs. 81/08', testo, categoria: 'Normativa', tag: [], fonte: 'TU-81-08.pdf', data_aggiornamento: '', origine: 'remoto', salvato_il: 0 }]);
+    const { photoRetrieval, suggestReferences } = await import('../src/lib/photo');
+    const { passageInfo } = await import('../src/lib/articles');
+    const { results, query } = await photoRetrieval({
+      descrizione: 'Ponteggio su facciata', tipo_opera: 'cantiere edile', elementi: ['carriola'], parole_chiave: ['ponteggio'], limiti: '',
+      criticita: ['parapetto mancante sul ponteggio', 'deposito di materiali sull\'impalcato', 'mantovana parasassi assente']
+    }, '');
+    expect(query).toMatch(/parapetto mancante.*·.*mantovana/);
+    const labels = new Set(results.flatMap((r) => passageInfo(r).articoli.filter((a) => a.conParola).map((a) => a.section.label)));
+    for (const l of ['Art. 124', 'Art. 126', 'Art. 129']) expect(labels).toContain(l);
+
+    const sugg = await suggestReferences(risposta);
+    expect(sugg.map((x) => x.titolo)).toEqual(['Assenza o incompletezza dei parapetti di protezione sul ponteggio', 'Materiali depositati sull\'impalcato']);
+    const art = (i: number) => sugg[i].results.flatMap((r) => passageInfo(r).articoli.map((a) => a.section.label));
+    expect(art(0)).toContain('Art. 126');
+    expect(art(1)).toContain('Art. 124');
   });
 });
