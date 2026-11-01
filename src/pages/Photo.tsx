@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import { Markdown } from '../components/Markdown';
 import { ResultCard } from '../components/ResultCard';
 import { CitedDocs } from '../components/CitedDocs';
-import { articlesByRecord } from '../lib/ai';
+import { articlesByRecord, resolveArticle } from '../lib/articles';
 import { analyzePhotos, asGeminiError, MAX_PHOTOS, preparePhoto, type PhotoAnalysis, type PhotoStep, type PreparedPhoto } from '../lib/photo';
 import { getSettings } from '../lib/settings';
 import { citedIds, splitCitations, type GeminiError } from '../shared/gemini.ts';
@@ -45,7 +45,7 @@ function plainReport(r: PhotoAnalysis, note: string): string {
   const docs = cited.map((id, i) => {
     const rec = recs.get(id)!;
     const extra = [
-      arts.get(id)?.length ? `articoli dei brani consultati: ${arts.get(id)!.join(', ')}` : '',
+      arts.get(id)?.length ? `articoli dei brani consultati: ${arts.get(id)!.map((a) => a.label).join(', ')}` : '',
       rec.fonte ? `fonte: ${rec.fonte}` : ''
     ].filter(Boolean).join('; ');
     return `${i + 1}. ${rec.titolo}${extra ? ` (${extra})` : ''}`;
@@ -182,6 +182,8 @@ export function PhotoPage({ online }: { online: boolean }) {
   const shown = result?.results ?? partial?.results ?? [];
   const ids = new Set(shown.map((r) => r.record.id));
   const titles = new Map(shown.map((r) => [r.record.id, r.record.titolo]));
+  // articoli citati nell'analisi: in verde, collegati al punto del documento
+  const articleLink = (label: string, near: string[]) => resolveArticle(shown, label, near, [...new Set(shown.flatMap((r) => r.terms))]);
   const cited = result ? citedIds(result.answer.text, ids) : [];
   const busy = step !== null;
 
@@ -267,7 +269,7 @@ export function PhotoPage({ online }: { online: boolean }) {
       {partial && !result && (
         <div ref={resultRef} class="photo-result-wrap">
           <article class="card ai-card photo-result" aria-label="Analisi in arrivo" aria-busy="true">
-            <Markdown text={partial.text} ids={ids} label={(id) => String(citedIds(partial.text, ids).indexOf(id) + 1)} titleOf={(id) => titles.get(id) ?? id} />
+            <Markdown text={partial.text} articleLink={articleLink} ids={ids} label={(id) => String(citedIds(partial.text, ids).indexOf(id) + 1)} titleOf={(id) => titles.get(id) ?? id} />
             <p class="muted small streaming"><span class="spinner" aria-hidden="true" /> L'AI sta scrivendo…</p>
           </article>
         </div>
@@ -277,6 +279,7 @@ export function PhotoPage({ online }: { online: boolean }) {
         <div ref={resultRef} class="photo-result-wrap">
           <article class="card ai-card photo-result" aria-label="Risultato dell'analisi">
             <Markdown
+              articleLink={articleLink}
               text={result.answer.text}
               ids={ids}
               label={(id) => String(cited.indexOf(id) + 1)}

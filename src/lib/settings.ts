@@ -14,6 +14,8 @@ export interface Settings {
   model: string;
   /** Argomenti in cui cercare (vuoto = tutti). */
   categorie: string[];
+  /** Documento della Normativa in cui cercare (id della scheda; vuoto = tutti i documenti). */
+  documento: string;
   /** AI gratuite di riserva (Groq, Mistral, OpenRouter): chiavi salvate solo su questo dispositivo. */
   riserve: Reserves;
 }
@@ -24,6 +26,7 @@ export const DEFAULT_SETTINGS: Settings = {
   apiKey: '',
   model: DEFAULT_MODEL,
   categorie: [],
+  documento: '',
   riserve: {}
 };
 

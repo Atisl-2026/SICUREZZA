@@ -104,7 +104,7 @@ describe('scelta automatica del modello', () => {
 
 describe('passaggio automatico tra le AI', () => {
   const base = (over: Partial<Settings> = {}): Settings => ({
-    autoCheck: true, webCheck: false, categorie: [], apiKey: 'AIza', model: 'gemini-2.5-flash',
+    autoCheck: true, webCheck: false, categorie: [], documento: '', apiKey: 'AIza', model: 'gemini-2.5-flash',
     riserve: { groq: { apiKey: 'gsk' }, openrouter: { apiKey: 'sk-or' } }, ...over
   });
   const gemini429 = () => json(429, { error: { code: 429, status: 'RESOURCE_EXHAUSTED', message: 'quota', details: [

@@ -5,6 +5,7 @@ import { citedIds } from '../shared/gemini.ts';
 import { Markdown } from './Markdown';
 import { ResultCard } from './ResultCard';
 import { CitedDocs } from './CitedDocs';
+import { resolveArticle } from '../lib/articles';
 
 /** Perché la risposta AI non è disponibile (o null se lo è). */
 export type AiUnavailable = 'offline' | 'nokey' | 'nonabilitato' | null;
@@ -22,6 +23,9 @@ export function DbSection({ results, ai, unavailable, recordCount, onRetry }: Db
   const [showBlocks, setShowBlocks] = useState(false);
   const ids = new Set(results.map((r) => r.record.id));
   const titles = new Map(results.map((r) => [r.record.id, r.record.titolo]));
+  // parole cercate in giallo e articoli in verde (collegati al punto del documento)
+  const terms = [...new Set(results.flatMap((r) => r.terms))];
+  const articleLink = (label: string, near: string[]) => resolveArticle(results, label, near, terms);
   const answered = ai.status === 'done';
   const cited = answered ? citedIds(ai.answer.text, ids) : [];
   // senza risposta AI i blocchi sono il contenuto principale e restano sempre visibili
@@ -61,6 +65,8 @@ export function DbSection({ results, ai, unavailable, recordCount, onRetry }: Db
       {ai.status === 'loading' && ai.partial && (
         <article class="card ai-card" aria-label="Risposta AI in arrivo" aria-busy="true">
           <Markdown
+            terms={terms}
+            articleLink={articleLink}
             text={ai.partial}
             ids={ids}
             label={(id) => String(citedIds(ai.partial!, ids).indexOf(id) + 1)}
@@ -83,6 +89,8 @@ export function DbSection({ results, ai, unavailable, recordCount, onRetry }: Db
       {answered && (
         <article class="card ai-card" aria-label="Risposta AI basata sul database">
           <Markdown
+            terms={terms}
+            articleLink={articleLink}
             text={ai.answer.text}
             ids={ids}
             label={(id) => String(cited.indexOf(id) + 1)}

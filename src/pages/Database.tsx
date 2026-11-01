@@ -21,8 +21,13 @@ interface Props {
 
 export function DatabasePage({ online, isAdmin }: Props) {
   const route = useRoute();
-  const [, sub, id] = route;
-  if (sub === 'record' && id) return <RecordDetail id={id} isAdmin={isAdmin} />;
+  const [, sub, id, k1, v1, k2, v2] = route;
+  if (sub === 'record' && id) {
+    // #database/record/<id>/art/<posizione>/q/<parole>: documento aperto sull'articolo, parole evidenziate
+    const art = k1 === 'art' && /^\d+$/.test(v1 ?? '') ? Number(v1) : undefined;
+    const q = k2 === 'q' ? v2 : undefined;
+    return <RecordDetail id={id} isAdmin={isAdmin} art={art} q={q} />;
+  }
   if (isAdmin && sub === 'nuovo') return <RecordForm />;
   if (isAdmin && sub === 'modifica' && id) return <RecordForm id={id} />;
   if (isAdmin && sub === 'carica') return <UploadPage />;

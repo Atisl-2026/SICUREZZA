@@ -7,7 +7,7 @@ import { aiAllowed, getAccess, type Accesso } from '../lib/access';
 import { db } from '../lib/db';
 import { addToHistory, clearHistory, removeFromHistory, useHistory } from '../lib/history';
 import { useLiveQuery } from '../lib/live';
-import { allMatches, searchLocal, type AllMatches, type LocalResult } from '../lib/search';
+import { allMatches, searchLocal, searchScope, type AllMatches, type LocalResult } from '../lib/search';
 import { AllResults } from '../components/AllResults';
 import { parseSimpleQuery, wordsOf } from '../shared/search.ts';
 import { useRoute } from '../lib/route';
@@ -153,9 +153,9 @@ function AskMain({ online, access }: Props) {
     setAi('web', IDLE);
     inputRef.current?.blur(); // chiude la tastiera su mobile
     try {
-      const { categorie } = await getSettings();
+      const { categorie, documento } = await searchScope();
       // i passaggi più pertinenti (per l'AI) e tutti i passaggi trovati (per documento)
-      const [res, tutti] = await Promise.all([searchLocal(question, { categorie }), allMatches(question, categorie)]);
+      const [res, tutti] = await Promise.all([searchLocal(question, { categorie, documento }), allMatches(question, categorie, documento)]);
       setAsked(question);
       setResults(res);
       setAll(tutti);

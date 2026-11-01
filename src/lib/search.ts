@@ -2,11 +2,12 @@ import type MiniSearch from 'minisearch';
 import type { SearchResult } from 'minisearch';
 import {
   buildIndex, candidates, countOccurrences, detailedCandidates, EMPTY_DETAILED, INDEX_FORMAT, isDetailedEmpty, loadIndex,
-  formsOf, matchesDetailed, planTerms, processTerm, selectHits, toSearchDocs, wordsOf, type DetailedQuery, type Hit,
+  formsOf, matchesDetailed, NORMATIVA, normCategory, planTerms, processTerm, selectHits, toSearchDocs, wordsOf, type DetailedQuery, type Hit,
   type RetrieveOptions, type SearchDoc
 } from '../shared/search.ts';
 import type { Chunk, StoredRecord } from '../shared/types.ts';
 import { db, getMeta, setMeta } from './db';
+import { getSettings } from './settings';
 
 interface SavedIndex {
   formato: number;
@@ -94,7 +95,7 @@ function attach(hits: Hit[], data: Awaited<ReturnType<typeof loadTexts>>, phrase
  */
 export async function searchLocal(query: string, opts: Partial<RetrieveOptions> = {}): Promise<LocalResult[]> {
   const index = await getIndex();
-  const { results, parsed } = candidates(index, query, opts.categorie);
+  const { results, parsed } = candidates(index, query, opts.categorie, opts.documento);
   if (!results.length) return [];
 
   if (!parsed.phrases.length && !parsed.exclude.length) {
@@ -125,10 +126,10 @@ export interface DetailedResult {
  * Ricerca dettagliata: tutte le parole, frasi esatte, almeno una parola, esclusioni, parole esatte.
  * Restituisce i passaggi che soddisfano tutte le condizioni, in ordine di pertinenza.
  */
-export async function searchDetailed(q: DetailedQuery, categorie?: string[], limit = 30): Promise<DetailedResult> {
+export async function searchDetailed(q: DetailedQuery, categorie?: string[], limit = 30, documento?: string): Promise<DetailedResult> {
   if (isDetailedEmpty(q)) return { results: [], totale: 0 };
   const index = await getIndex();
-  const pool = detailedCandidates(index, q, categorie).slice(0, MAX_TEXT_CHECK);
+  const pool = detailedCandidates(index, q, categorie, documento).slice(0, MAX_TEXT_CHECK);
   if (!pool.length) return { results: [], totale: 0 };
   const data = await loadTexts(pool.map((r) => String(r.id)));
   const ok = pool.filter((r) => {
@@ -218,9 +219,9 @@ async function groupByDocument(
  * Tutti i passaggi che contengono le parole cercate (non solo i più pertinenti per l'AI):
  * se ci sono passaggi con tutte le parole si mostrano quelli, altrimenti quelli con almeno una.
  */
-export async function allMatches(query: string, categorie?: string[]): Promise<AllMatches> {
+export async function allMatches(query: string, categorie?: string[], documento?: string): Promise<AllMatches> {
   const index = await getIndex();
-  const c = candidates(index, query, categorie);
+  const c = candidates(index, query, categorie, documento);
   if (!c.results.length) return { ...EMPTY_ALL, simili: c.simili };
   const conTutte = c.conTutte > 0;
   let pool = conTutte ? c.results.slice(0, c.conTutte) : c.results;
@@ -243,10 +244,10 @@ export async function allMatches(query: string, categorie?: string[]): Promise<A
 }
 
 /** Tutti i passaggi della ricerca dettagliata, raggruppati per documento. */
-export async function allDetailedMatches(q: DetailedQuery, categorie?: string[]): Promise<AllMatches> {
+export async function allDetailedMatches(q: DetailedQuery, categorie?: string[], documento?: string): Promise<AllMatches> {
   if (isDetailedEmpty(q)) return EMPTY_ALL;
   const index = await getIndex();
-  const pool = detailedCandidates(index, q, categorie).slice(0, MAX_TEXT_CHECK);
+  const pool = detailedCandidates(index, q, categorie, documento).slice(0, MAX_TEXT_CHECK);
   const plan = planTerms(index, [q.all, ...q.phrases, q.any].join(' '));
   const simili = q.exact ? [] : plan.simili;
   if (!pool.length) return { ...EMPTY_ALL, simili };
@@ -267,6 +268,26 @@ export async function allDetailedMatches(q: DetailedQuery, categorie?: string[])
 /** Testi dei passaggi da mostrare (caricati a pagine). */
 export async function loadMatches(hits: Hit[], phrases: string[] = []): Promise<LocalResult[]> {
   return attach(hits, await loadTexts(hits.map((h) => h.chunkId)), phrases);
+}
+
+// ============================================================ dove cercare
+
+/** Documenti della categoria Normativa (per il menu a tendina), in ordine alfabetico. */
+export async function normativaDocs(): Promise<{ id: string; titolo: string }[]> {
+  const keys = (await db.records.orderBy('categoria').uniqueKeys()).filter((k) => normCategory(String(k)) === NORMATIVA);
+  if (!keys.length) return [];
+  const out: { id: string; titolo: string }[] = [];
+  await db.records.where('categoria').anyOf(keys as string[]).each((r) => out.push({ id: r.id, titolo: r.titolo }));
+  return out.sort((a, b) => a.titolo.localeCompare(b.titolo, 'it', { numeric: true }));
+}
+
+/** Argomenti scelti e documento di Normativa scelto (ignorato se non esiste più o se la Normativa è esclusa). */
+export async function searchScope(): Promise<{ categorie: string[]; documento?: string }> {
+  const { categorie, documento } = await getSettings();
+  if (!documento) return { categorie };
+  if (categorie.length && !categorie.map(normCategory).includes(NORMATIVA)) return { categorie };
+  const r = await db.records.get(documento);
+  return r && normCategory(r.categoria) === NORMATIVA ? { categorie, documento } : { categorie };
 }
 
 /** Argomenti presenti nell'archivio, con il numero di schede. */

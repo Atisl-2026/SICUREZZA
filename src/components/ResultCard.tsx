@@ -4,17 +4,20 @@ import type { LocalResult } from '../lib/search';
 import { highlight, snippet } from '../shared/search.ts';
 import { formatDate } from '../lib/format';
 import { Highlighted } from './Highlighted';
-import { articlesOf } from '../lib/ai';
+import { articleHref, passageInfo } from '../lib/articles';
+import { headingText } from '../shared/articles.ts';
 
 const isUrl = (s: string) => /^https?:\/\//i.test(s.trim());
 
 /** Scheda di un blocco trovato: titolo, fonte, estratto con termini evidenziati. */
 export function ResultCard({ r, index }: { r: LocalResult; index: number | string }) {
   const [open, setOpen] = useState(false);
-  const short = snippet(r.chunk.testo, r.terms, 320, r.phrases);
+  const info = passageInfo(r);
+  const short = snippet(r.chunk.testo, r.terms, 320, r.phrases, info.headRanges);
   const truncated = short.some((s) => s.text === '… ' || s.text === ' …');
-  const art = articlesOf(r);
-  const articoli = [art.inizio, ...art.nelBrano].filter((x): x is string => !!x);
+  // gli articoli in cui compare la parola cercata; se nessuno (parola solo nel titolo) quello del brano
+  const withWord = info.articoli.filter((a) => a.conParola);
+  const articoli = withWord.length ? withWord : info.articoli.slice(0, 1);
 
   return (
     <article class="card result-card" aria-labelledby={`res-${index}`}>
@@ -25,10 +28,21 @@ export function ResultCard({ r, index }: { r: LocalResult; index: number | strin
           {r.record.data_aggiornamento && <span>{formatDate(r.record.data_aggiornamento)}</span>}
           {r.chunk.n > 0 && <span>parte {r.chunk.n + 1}</span>}
         </div>
-        {articoli.length > 0 && <div class="result-article">{articoli.join(' · ')}</div>}
+        {articoli.length > 0 && (
+          <div class="result-articles">
+            {articoli.map((a) => (
+              <span key={a.section.pos} class="art-badge">
+                <a href={articleHref(r.record.id, a.section.pos, r.terms)} title="Apri l'articolo nel documento">{headingText(a.section)}</a>
+                {a.online && (
+                  <a class="art-online" href={a.online} target="_blank" rel="noopener noreferrer" title="Testo ufficiale online (Normattiva)" aria-label={`${a.section.label} sul testo ufficiale online`}>↗</a>
+                )}
+              </span>
+            ))}
+          </div>
+        )}
       </header>
       <p class="result-text">
-        <Highlighted segments={open ? highlight(r.chunk.testo, r.terms) : short} />
+        <Highlighted segments={open ? highlight(r.chunk.testo, r.terms, info.headRanges) : short} />
       </p>
       <footer class="result-footer">
         {r.record.fonte && (

@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { AllResults } from '../components/AllResults';
 import { TopicFilter } from '../components/TopicFilter';
-import { allDetailedMatches, type AllMatches } from '../lib/search';
-import { getSettings } from '../lib/settings';
+import { allDetailedMatches, searchScope, type AllMatches } from '../lib/search';
 import { EMPTY_DETAILED, isDetailedEmpty, wordsOf, type DetailedQuery } from '../shared/search.ts';
 
 interface Form {
@@ -57,9 +56,9 @@ export function DetailedPage() {
 
   const run = async () => {
     setBusy(true);
-    const { categorie } = await getSettings();
+    const { categorie, documento } = await searchScope();
     const q = toQuery(form);
-    setResult(await allDetailedMatches(q, categorie));
+    setResult(await allDetailedMatches(q, categorie, documento));
     setLabel(labelOf(q));
     setBusy(false);
     requestAnimationFrame(() => resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));

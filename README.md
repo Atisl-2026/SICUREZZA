@@ -231,6 +231,20 @@ negli indici dei PDF («preposto253», «art.18»), vengono trovate.
 | Escludi queste parole | scarta le schede che le contengono |
 | Solo parole esatte | niente plurali, varianti o errori di battitura («ponteggio» non trova «ponteggi») |
 
+**Documento di Normativa** (sotto «Cerca in», solo per la categoria Normativa): menu a tendina per cercare in un solo
+documento (es. *D.lgs. 81/08*). Vale anche per le risposte AI. Gli altri argomenti scelti restano interi; togliendo
+la Normativa dagli argomenti la scelta si azzera.
+
+**Articoli evidenziati e collegati**: su ogni passaggio trovato compare in **verde chiaro** l'articolo in cui c'è la
+parola cercata (es. *Art. 19 – Obblighi del preposto*), anche se il passaggio inizia a metà articolo; la parola cercata è
+in **giallo**. Lo stesso nella risposta dell'AI: i riferimenti «Art. 19, comma 1» sono in verde e **cliccabili**.
+- clic sull'articolo → si apre il **documento trasmesso** proprio su quell'articolo, con la parola evidenziata e i
+  pulsanti *articolo precedente/successivo*;
+- **↗** accanto all'articolo → il **testo ufficiale online** su Normattiva (per il D.Lgs. 81/2008 automaticamente; per
+  gli altri provvedimenti incolla il link Normattiva nel campo **Fonte** della scheda). Il collegamento online c'è solo
+  per gli articoli del provvedimento principale: l'indice iniziale del PDF e i decreti riportati in appendice (che
+  hanno una loro numerazione, es. altri «Art. 19») restano collegati solo al documento trasmesso.
+
 **Cerca in** (sotto la casella, in entrambe le modalità): spunte per scegliere gli argomenti —
 *Normativa, FAQ, Formazione, Generale, Procedure, Schede tecniche* e le altre categorie presenti — oppure **Tutti**.
 La scelta resta memorizzata sul telefono e vale anche per le risposte AI; il numero accanto a ogni argomento è quello

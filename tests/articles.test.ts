@@ -3,7 +3,8 @@ import { articlesForChunk, findHeadings } from '../src/shared/articles.ts';
 import { chunkText } from '../src/shared/chunk.ts';
 import { buildDbRequest, formatContext, SYSTEM_DB } from '../src/shared/gemini.ts';
 import { SYSTEM_PHOTO_ANALYSIS } from '../src/shared/vision.ts';
-import { toBlocks, articlesByRecord } from '../src/lib/ai';
+import { toBlocks } from '../src/lib/ai';
+import { articlesByRecord } from '../src/lib/articles';
 import type { LocalResult } from '../src/lib/search';
 
 const filler = (s: string) => `${s} `.repeat(40).trim();
@@ -66,7 +67,7 @@ describe('articoli e allegati', () => {
     const [b] = toBlocks([r]);
     expect(b.articolo).toBe('Art. 126 – Parapetti');
     expect(formatContext([b])).toContain('articolo: Art. 126 – Parapetti');
-    expect(articlesByRecord([r]).get('normativa-titolo-iv')).toEqual(['Art. 126']);
+    expect(articlesByRecord([r]).get('normativa-titolo-iv')!.map((a) => a.label)).toEqual(['Art. 126']);
     expect(buildDbRequest('parapetti', [b]).contents[0].parts[0]).toMatchObject({ text: expect.stringContaining('articolo: Art. 126') });
     expect(SYSTEM_DB).toMatch(/Art\. 126, comma 1/);
     expect(SYSTEM_PHOTO_ANALYSIS).toMatch(/RIFERIMENTO PRECISO/);

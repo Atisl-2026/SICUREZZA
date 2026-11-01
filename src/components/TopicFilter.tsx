@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'preact/hooks';
 import { useCategories } from '../lib/categories';
 import { updateSettings, useSettings } from '../lib/settings';
-import { normCategory } from '../shared/search.ts';
+import { useLiveQuery } from '../lib/live';
+import { normativaDocs } from '../lib/search';
+import { NORMATIVA, normCategory } from '../shared/search.ts';
 
 /** Argomenti da mostrare: l'elenco del programmatore (o quello standard) + quelli usati dalle schede. */
 function useTopics(): { nome: string; schede: number }[] {
@@ -10,8 +12,11 @@ function useTopics(): { nome: string; schede: number }[] {
 
 /** Spunte "Cerca in": argomenti in cui cercare (scelta ricordata sul dispositivo). */
 export function TopicFilter() {
-  const { categorie: saved } = useSettings();
+  const { categorie: saved, documento: savedDoc } = useSettings();
   const topics = useTopics();
+  const docs = useLiveQuery(normativaDocs) ?? [];
+  const [localDoc, setLocalDoc] = useState<string | null>(null);
+  useEffect(() => setLocalDoc(null), [savedDoc]);
   const [open, setOpen] = useState(false);
   // scelta mostrata subito; il salvataggio avviene in sottofondo
   const [local, setLocal] = useState<string[] | null>(null);
@@ -19,7 +24,10 @@ export function TopicFilter() {
   const categorie = local ?? saved;
   const save = (next: string[]) => {
     setLocal(next);
-    updateSettings({ categorie: next });
+    // il documento si sceglie solo dentro la Normativa: togliendo la Normativa si azzera
+    const keepDoc = next.length === 0 || next.includes(NORMATIVA);
+    if (!keepDoc) setLocalDoc('');
+    updateSettings(keepDoc ? { categorie: next } : { categorie: next, documento: '' });
   };
   const selected = new Set(categorie.map(normCategory));
   const tutti = selected.size === 0;
@@ -35,12 +43,21 @@ export function TopicFilter() {
     save([...next]);
   };
 
-  const summary = tutti
-    ? 'Tutti gli argomenti'
-    : topics.filter((t) => selected.has(normCategory(t.nome))).map((t) => t.nome).join(', ') || 'Tutti gli argomenti';
+  const normativaOn = tutti || selected.has(NORMATIVA);
+  const docId = localDoc ?? savedDoc;
+  const doc = normativaOn ? docs.find((d) => d.id === docId) : undefined;
+  const chooseDoc = (id: string) => {
+    setLocalDoc(id);
+    updateSettings({ documento: id });
+  };
+
+  const names = tutti
+    ? ['Tutti gli argomenti']
+    : topics.filter((t) => selected.has(normCategory(t.nome))).map((t) => t.nome);
+  const summary = (names.join(', ') || 'Tutti gli argomenti') + (doc ? ` · Normativa: ${doc.titolo}` : '');
 
   return (
-    <div class={`card topic-filter ${tutti ? '' : 'is-filtered'}`}>
+    <div class={`card topic-filter ${tutti && !doc ? '' : 'is-filtered'}`}>
       <button type="button" class="topic-head" aria-expanded={open} onClick={() => setOpen(!open)}>
         <span>
           <span class="small muted">Cerca in</span>
@@ -67,6 +84,16 @@ export function TopicFilter() {
             </label>
           ))}
         </div>
+      )}
+      {normativaOn && docs.length > 0 && (
+        <label class="field doc-picker">
+          <span class="small">Documento di Normativa</span>
+          <select value={doc ? doc.id : ''} onChange={(e) => chooseDoc((e.target as HTMLSelectElement).value)}>
+            <option value="">Tutti i documenti di Normativa ({docs.length})</option>
+            {docs.map((d) => <option key={d.id} value={d.id}>{d.titolo}</option>)}
+          </select>
+          {doc && <span class="muted small">Nella Normativa si cerca solo in questo documento (anche le risposte AI).</span>}
+        </label>
       )}
     </div>
   );

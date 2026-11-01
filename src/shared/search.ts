@@ -1,6 +1,7 @@
 import MiniSearch, { type Options, type SearchResult } from 'minisearch';
 import { stripAccents } from './normalize.ts';
 import type { Chunk, DbRecord } from './types.ts';
+import { findHeadings, headingText } from './articles.ts';
 
 // ============================================================ analisi del testo in italiano
 
@@ -85,17 +86,20 @@ export interface SearchDoc {
   testo: string;
   tag: string;
   categoria: string;
+  /** rubriche degli articoli del blocco («Art. 19 – Obblighi del preposto»): pesano più del testo */
+  rubrica?: string;
 }
 
-export const INDEX_FORMAT = 3; // 2: categoria tra i campi memorizzati; 3: lettere e cifre attaccate separate
+// 2: categoria tra i campi memorizzati; 3: lettere e cifre attaccate separate; 4: rubriche degli articoli
+export const INDEX_FORMAT = 4;
 
 export const SEARCH_OPTIONS: Options<SearchDoc> = {
-  fields: ['titolo', 'testo', 'tag', 'categoria'],
+  fields: ['titolo', 'testo', 'tag', 'categoria', 'rubrica'],
   storeFields: ['recordId', 'n', 'categoria'],
   tokenize,
   processTerm,
   searchOptions: {
-    boost: { titolo: 2, tag: 1.5, testo: 1, categoria: 0.5 },
+    boost: { titolo: 2, rubrica: 2.5, tag: 1.5, testo: 1, categoria: 0.5 },
     // prefisso solo sull'ultima parola, quella che si sta ancora scrivendo ("stamp" → stampante):
     // sulle altre parole porterebbe rumore (auto → autorità)
     prefix: (term, i, terms) => i === terms.length - 1 && term.length >= 3,
@@ -106,11 +110,46 @@ export const SEARCH_OPTIONS: Options<SearchDoc> = {
   }
 };
 
-export function toSearchDocs(chunks: Chunk[], records: Map<string, Pick<DbRecord, 'titolo' | 'tag' | 'categoria'>>): SearchDoc[] {
+type IndexedRecord = Pick<DbRecord, 'titolo' | 'tag' | 'categoria'> & { testo?: string };
+
+/** Rubrica degli articoli toccati da ogni blocco (quello in cui inizia e quelli che contiene). */
+function rubriche(text: string, chunks: Chunk[]): Map<string, string> {
+  const out = new Map<string, string>();
+  const sections = findHeadings(text);
+  if (!sections.length) return out;
+  let from = 0;
+  let k = 0;
+  for (const c of [...chunks].sort((a, b) => a.n - b.n)) {
+    // i blocchi sono in ordine: si cerca a partire dal precedente (niente ricerche sull'intero testo)
+    let start = text.indexOf(c.testo.slice(0, 120), Math.max(0, from - 2000));
+    if (start < 0) start = text.indexOf(c.testo.slice(0, 120));
+    if (start < 0) continue;
+    from = start;
+    const end = start + c.testo.length;
+    while (k + 1 < sections.length && sections[k + 1].pos <= start) k++;
+    const parts: string[] = [];
+    if (sections[k] && sections[k].pos <= start) parts.push(headingText(sections[k]));
+    for (let j = k + 1; j < sections.length && sections[j].pos < end; j++) parts.push(headingText(sections[j]));
+    if (parts.length) out.set(c.id, parts.join(' · '));
+  }
+  return out;
+}
+
+export function toSearchDocs(chunks: Chunk[], records: Map<string, IndexedRecord>): SearchDoc[] {
+  const byRecord = new Map<string, Chunk[]>();
+  for (const c of chunks) byRecord.set(c.recordId, [...(byRecord.get(c.recordId) ?? []), c]);
+  const rub = new Map<string, string>();
+  for (const [id, list] of byRecord) {
+    const t = records.get(id)?.testo;
+    if (t) for (const [cid, v] of rubriche(t, list)) rub.set(cid, v);
+  }
   return chunks.flatMap((c) => {
     const r = records.get(c.recordId);
     if (!r) return [];
-    return [{ id: c.id, recordId: c.recordId, n: c.n, titolo: r.titolo, testo: c.testo, tag: r.tag.join(' '), categoria: r.categoria }];
+    const doc: SearchDoc = { id: c.id, recordId: c.recordId, n: c.n, titolo: r.titolo, testo: c.testo, tag: r.tag.join(' '), categoria: r.categoria };
+    const rb = rub.get(c.id);
+    if (rb) doc.rubrica = rb;
+    return [doc];
   });
 }
 
@@ -146,6 +185,8 @@ export interface RetrieveOptions {
   minRelativeScore: number;
   /** Argomenti (categorie) in cui cercare; vuoto o assente = tutti. */
   categorie?: string[];
+  /** Solo nella Normativa: documento scelto (id della scheda); le altre categorie restano intere. */
+  documento?: string;
 }
 
 export const DEFAULT_RETRIEVE: RetrieveOptions = { limit: 8, maxPerRecord: 3, minResults: 6, minRelativeScore: 0.1 };
@@ -153,10 +194,20 @@ export const DEFAULT_RETRIEVE: RetrieveOptions = { limit: 8, maxPerRecord: 3, mi
 /** "Schede Tecniche " → "schede tecniche" (confronto delle categorie). */
 export const normCategory = (c: string) => stripAccents(c).toLowerCase().replace(/\s+/g, ' ').trim();
 
-function categoryFilter(categorie?: string[]): ((r: SearchResult) => boolean) | undefined {
-  if (!categorie?.length) return undefined;
-  const set = new Set(categorie.map(normCategory));
-  return (r) => set.has(normCategory(String(r.categoria ?? '')));
+export const NORMATIVA = 'normativa';
+
+/**
+ * Dove cercare: argomenti scelti (vuoto = tutti) e, solo per la Normativa, un documento preciso.
+ * Con un documento scelto, della Normativa si cerca solo in quello; gli altri argomenti restano interi.
+ */
+function categoryFilter(categorie?: string[], documento?: string): ((r: SearchResult) => boolean) | undefined {
+  if (!categorie?.length && !documento) return undefined;
+  const set = categorie?.length ? new Set(categorie.map(normCategory)) : null;
+  return (r) => {
+    const c = normCategory(String(r.categoria ?? ''));
+    if (set && !set.has(c)) return false;
+    return !documento || c !== NORMATIVA || r.recordId === documento;
+  };
 }
 
 // ---------- confronti esatti (frasi, parole esatte, esclusioni)
@@ -255,12 +306,12 @@ export interface Candidates {
  * Candidati della ricerca semplice: prima i blocchi che contengono TUTTE le parole significative,
  * poi quelli che ne contengono almeno una (in ordine di pertinenza).
  */
-export function candidates(index: MiniSearch<SearchDoc>, query: string, categorie?: string[]): Candidates {
+export function candidates(index: MiniSearch<SearchDoc>, query: string, categorie?: string[], documento?: string): Candidates {
   const parsed = parseSimpleQuery(query);
   const text = [parsed.text, ...parsed.phrases].join(' ').trim();
   if (!text || !wordsOf(text).length) return { results: [], conTutte: 0, parsed, simili: [] };
   const plan = planTerms(index, text);
-  const base = { filter: categoryFilter(categorie), fuzzy: plan.fuzzy, prefix: plan.prefix };
+  const base = { filter: categoryFilter(categorie, documento), fuzzy: plan.fuzzy, prefix: plan.prefix };
   const all = index.search(text, { ...base, combineWith: 'AND' });
   const any = index.search(text, { ...base, combineWith: 'OR' });
   const seen = new Set(all.map((r) => r.id));
@@ -285,13 +336,24 @@ export function selectHits(results: SearchResult[], opts: Partial<RetrieveOption
     hits.push({ chunkId: String(r.id), recordId, n: r.n as number, score: r.score, terms: r.terms });
     if (hits.length >= o.limit) break;
   }
+  // posti rimasti liberi (pochi documenti pertinenti, es. un solo testo unico): si riempiono con
+  // altri blocchi degli stessi documenti, senza il limite per documento
+  if (hits.length < o.limit && hits.length < results.length) {
+    const taken = new Set(hits.map((h) => h.chunkId));
+    for (const r of results) {
+      if (hits.length >= o.limit) break;
+      if (taken.has(String(r.id)) || r.score < top * o.minRelativeScore || !accept(r)) continue;
+      hits.push({ chunkId: String(r.id), recordId: r.recordId as string, n: r.n as number, score: r.score, terms: r.terms });
+    }
+    hits.sort((a, b) => b.score - a.score);
+  }
   return hits;
 }
 
 /** Recupera i blocchi più pertinenti per una domanda (senza i controlli sul testo di frasi ed esclusioni). */
 export function retrieve(index: MiniSearch<SearchDoc>, query: string, opts: Partial<RetrieveOptions> = {}): Hit[] {
   if (!query.trim()) return [];
-  return selectHits(candidates(index, query, opts.categorie).results, opts);
+  return selectHits(candidates(index, query, opts.categorie, opts.documento).results, opts);
 }
 
 // ---------- ricerca dettagliata
@@ -316,7 +378,7 @@ export function isDetailedEmpty(q: DetailedQuery): boolean {
 }
 
 /** Candidati della ricerca dettagliata (i controlli esatti si fanno poi sul testo con matchesDetailed). */
-export function detailedCandidates(index: MiniSearch<SearchDoc>, q: DetailedQuery, categorie?: string[]): SearchResult[] {
+export function detailedCandidates(index: MiniSearch<SearchDoc>, q: DetailedQuery, categorie?: string[], documento?: string): SearchResult[] {
   const required = [q.all, ...q.phrases].join(' ').trim();
   const any = q.any.trim();
   const plan = planTerms(index, [required, any].join(' '));
@@ -324,7 +386,7 @@ export function detailedCandidates(index: MiniSearch<SearchDoc>, q: DetailedQuer
     prefix: false,
     // parole simili solo per le parole che non esistono nell'archivio
     fuzzy: q.exact ? false : (term: string) => (plan.exact.has(term) ? false : term.length >= 6 ? 1 : false),
-    filter: categoryFilter(categorie)
+    filter: categoryFilter(categorie, documento)
   };
   const hasReq = wordsOf(required).length > 0;
   const hasAny = wordsOf(any).length > 0;
@@ -405,7 +467,10 @@ export function queryTerms(query: string): string[] {
 
 export interface Segment {
   text: string;
+  /** parola cercata (giallo) */
   mark: boolean;
+  /** intestazione di un articolo (verde chiaro) */
+  art?: boolean;
 }
 
 /** Posizioni [inizio, fine) delle parole del testo che corrispondono ai termini trovati. */
@@ -419,38 +484,45 @@ export function matchRanges(text: string, terms: string[]): [number, number][] {
   return ranges;
 }
 
-function toSegments(text: string, ranges: [number, number][], offset = 0): Segment[] {
-  const out: Segment[] = [];
-  let pos = offset;
+function toSegments(text: string, ranges: [number, number][], offset = 0, artRanges: [number, number][] = []): Segment[] {
   const end = offset + text.length;
-  for (const [a, b] of ranges) {
+  const inside = (list: [number, number][], p: number) => list.some(([a, b]) => p >= a && p < b);
+  const cuts = new Set<number>([offset, end]);
+  for (const [a, b] of [...ranges, ...artRanges]) {
     if (b <= offset || a >= end) continue;
-    const s = Math.max(a, offset);
-    const e = Math.min(b, end);
-    if (s > pos) out.push({ text: text.slice(pos - offset, s - offset), mark: false });
-    out.push({ text: text.slice(s - offset, e - offset), mark: true });
-    pos = e;
+    cuts.add(Math.max(a, offset));
+    cuts.add(Math.min(b, end));
   }
-  if (pos < end) out.push({ text: text.slice(pos - offset), mark: false });
+  const points = [...cuts].sort((x, y) => x - y);
+  const out: Segment[] = [];
+  for (let i = 0; i < points.length - 1; i++) {
+    const [a, b] = [points[i], points[i + 1]];
+    if (a === b) continue;
+    const seg: Segment = { text: text.slice(a - offset, b - offset), mark: inside(ranges, a) };
+    if (artRanges.length && inside(artRanges, a)) seg.art = true;
+    const prev = out[out.length - 1];
+    if (prev && prev.mark === seg.mark && !!prev.art === !!seg.art) prev.text += seg.text;
+    else out.push(seg);
+  }
   return out;
 }
 
 /** Testo intero diviso in parti evidenziate e non. */
-export function highlight(text: string, terms: string[]): Segment[] {
-  return toSegments(text, matchRanges(text, terms));
+export function highlight(text: string, terms: string[], artRanges: [number, number][] = []): Segment[] {
+  return toSegments(text, matchRanges(text, terms), 0, artRanges);
 }
 
 /**
  * Estratto di ~`size` caratteri centrato sulla zona con più termini trovati,
  * tagliato a inizio/fine parola, con "…" se il testo continua.
  */
-export function snippet(text: string, terms: string[], size = 320, phrases: string[] = []): Segment[] {
+export function snippet(text: string, terms: string[], size = 320, phrases: string[] = [], artRanges: [number, number][] = []): Segment[] {
   const ranges = matchRanges(text, terms);
-  if (text.length <= size) return toSegments(text, ranges);
+  if (text.length <= size) return toSegments(text, ranges, 0, artRanges);
 
   // ricerca di una frase esatta: l'estratto parte da dove compare la frase
   const at = phraseIndex(text, phrases);
-  if (at >= 0) return windowAt(text, ranges, Math.max(0, Math.min(at - Math.floor(size / 4), text.length - size)), size);
+  if (at >= 0) return windowAt(text, ranges, Math.max(0, Math.min(at - Math.floor(size / 4), text.length - size)), size, artRanges);
 
   // finestra con il maggior numero di corrispondenze
   let bestStart = 0;
@@ -466,7 +538,7 @@ export function snippet(text: string, terms: string[], size = 320, phrases: stri
   const start = fromTop > 0 && fromTop >= bestCount - 1
     ? 0
     : Math.max(0, Math.min(bestStart - Math.floor(size / 4), text.length - size));
-  return windowAt(text, ranges, start, size);
+  return windowAt(text, ranges, start, size, artRanges);
 }
 
 /** Posizione della prima frase cercata nel testo (maiuscole e punteggiatura ignorate), o -1. */
@@ -479,7 +551,7 @@ export function phraseIndex(text: string, phrases: string[]): number {
   return best;
 }
 
-function windowAt(text: string, ranges: [number, number][], from: number, size: number): Segment[] {
+function windowAt(text: string, ranges: [number, number][], from: number, size: number, artRanges: [number, number][] = []): Segment[] {
   let start = from;
   let end = Math.min(text.length, start + size);
   if (start > 0) {
@@ -490,7 +562,7 @@ function windowAt(text: string, ranges: [number, number][], from: number, size: 
     const back = text.slice(end - 40, end).search(/\s\S*$/);
     if (back >= 0) end = end - 40 + back;
   }
-  const segs = toSegments(text.slice(start, end), ranges, start);
+  const segs = toSegments(text.slice(start, end), ranges, start, artRanges);
   if (start > 0) segs.unshift({ text: '… ', mark: false });
   if (end < text.length) segs.push({ text: ' …', mark: false });
   return segs;

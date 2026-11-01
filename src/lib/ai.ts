@@ -3,7 +3,7 @@ import {
 } from '../shared/gemini.ts';
 import { runAi } from './router';
 import type { LocalResult } from './search';
-import { articlesForChunk, findHeadings, type ChunkArticles, type Heading } from '../shared/articles.ts';
+import { articlesOf } from './articles';
 import type { Settings } from './settings';
 import { withModelFallback } from './model';
 
@@ -13,34 +13,7 @@ export type AiState =
   | { status: 'done'; answer: GeminiAnswer }
   | { status: 'error'; error: GeminiError; disabledWeb?: boolean };
 
-// intestazioni degli articoli per scheda (il testo completo si analizza una volta sola)
-const headingsCache = new Map<string, { testo: string; headings: Heading[] }>();
-
-/** Articolo/allegato a cui appartiene il brano trovato (es. "Art. 126 – Parapetti"). */
-export function articlesOf(r: LocalResult): ChunkArticles {
-  let c = headingsCache.get(r.record.id);
-  if (!c || c.testo !== r.record.testo) {
-    c = { testo: r.record.testo, headings: findHeadings(r.record.testo) };
-    if (headingsCache.size > 200) headingsCache.clear();
-    headingsCache.set(r.record.id, c);
-  }
-  return articlesForChunk(r.record.testo, r.chunk.testo, c.headings);
-}
-
-/** Articoli dei brani consultati, per scheda (nell'ordine in cui compaiono). */
-export function articlesByRecord(results: LocalResult[]): Map<string, string[]> {
-  const out = new Map<string, string[]>();
-  for (const r of results) {
-    const a = articlesOf(r);
-    const list = out.get(r.record.id) ?? [];
-    for (const x of [a.inizio, ...a.nelBrano]) {
-      const label = x?.split(' – ')[0];
-      if (label && !list.includes(label)) list.push(label);
-    }
-    out.set(r.record.id, list);
-  }
-  return out;
-}
+export { articlesOf } from './articles';
 
 export function toBlocks(results: LocalResult[]): ContextBlock[] {
   return results.map((r) => {

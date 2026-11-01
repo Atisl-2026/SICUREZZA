@@ -116,6 +116,14 @@ export function RecordForm({ id }: { id?: string }) {
       <label>
         Fonte <span class="muted small">(riferimento o URL)</span>
         <input value={draft.fonte} onInput={set('fonte')} inputMode="url" />
+        {draft.categoria.trim().toLowerCase() === 'normativa' && (
+          <span class="muted small">
+            Per collegare ogni articolo al testo ufficiale incolla il link Normattiva del provvedimento
+            (es. <code>https://www.normattiva.it/uri-res/N2Ls?urn:nir:stato:decreto.legislativo:2008-04-09;81</code>):
+            l'app aggiunge da sola il numero dell'articolo. Per altri siti scrivi <code>{'{art}'}</code> dove va il numero.
+            Il D.Lgs. 81/2008 è riconosciuto anche senza link.
+          </span>
+        )}
       </label>
       {!original && (
         <label>
