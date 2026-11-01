@@ -67,3 +67,65 @@ describe('modello ritirato: scelta automatica e nuovo tentativo', () => {
     expect((await getSettings()).model).toBe('gemini-2.5-flash');
   });
 });
+
+describe('quota esaurita: altri modelli Gemini e Gemma con la stessa chiave', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  const list = {
+    models: ['gemini-flash-latest', 'gemini-3.8-flash', 'gemini-3.8-flash-lite', 'gemma-3-27b-it', 'gemma-3-1b-it', 'gemma-3n-e4b-it']
+      .map((id) => ({ name: `models/${id}`, supportedGenerationMethods: ['generateContent'] }))
+  };
+  const daily = (model: string, limit: number) => new Response(JSON.stringify({ error: { code: 429, status: 'RESOURCE_EXHAUSTED', message: 'quota', details: [
+    { '@type': 'type.googleapis.com/google.rpc.QuotaFailure', violations: [{ quotaId: 'GenerateRequestsPerDayPerProjectPerModel-FreeTier', quotaValue: String(limit), quotaDimensions: { model } }] }
+  ] } }), { status: 429 });
+
+  it('alias e modello reale hanno la stessa quota; poi il Flash-Lite, poi Gemma (richiesta adattata)', async () => {
+    const { resetModelState } = await import('../src/lib/model');
+    resetModelState();
+    const calls: { model: string; body: Record<string, unknown> }[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
+      if (url.includes('/models?')) return new Response(JSON.stringify(list), { status: 200 });
+      const model = url.match(/models\/([^:]+):/)![1];
+      calls.push({ model, body: JSON.parse(String(init!.body)) });
+      if (model === 'gemini-flash-latest' || model === 'gemini-3.8-flash') return daily('gemini-3.8-flash', 20);
+      if (model === 'gemini-3.8-flash-lite') return daily('gemini-3.8-flash-lite', 20);
+      return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: `ok da ${model}` }] }, finishReason: 'STOP' }] }), { status: 200 });
+    }));
+    const { updateSettings, getSettings } = await import('../src/lib/settings');
+    await updateSettings({ apiKey: 'AIzaK', model: 'gemini-flash-latest' });
+    const { runAi } = await import('../src/lib/router');
+    (await import('../src/lib/router')).resetRouter();
+    const { buildDescribeRequest } = await import('../src/shared/vision.ts');
+    const req = buildDescribeRequest([{ mimeType: 'image/jpeg', data: 'AAAA' }], 'ponteggio');
+    const a = await runAi(await getSettings(), { request: req, timeoutMs: 5000, signal: new AbortController().signal, thinking: 'minimal' });
+    expect(a.text).toBe('ok da gemma-3-27b-it');
+    expect(a.modello).toBe('gemma-3-27b-it');
+    // il modello reale dell'alias non viene riprovato
+    expect(calls.map((c) => c.model)).toEqual(['gemini-flash-latest', 'gemini-3.8-flash-lite', 'gemma-3-27b-it']);
+    // Gemma: niente istruzioni di sistema, schema JSON o ragionamento; istruzioni all'inizio del messaggio, foto incluse
+    const g = calls[2].body as { systemInstruction?: unknown; generationConfig: Record<string, unknown>; contents: { parts: Record<string, unknown>[] }[] };
+    expect(g.systemInstruction).toBeUndefined();
+    expect(g.generationConfig.responseSchema).toBeUndefined();
+    expect(g.generationConfig.thinkingConfig).toBeUndefined();
+    expect(String(g.contents[0].parts[0].text)).toMatch(/^ISTRUZIONI:[\s\S]*SOLO con un oggetto JSON/);
+    expect(g.contents[0].parts[1]).toEqual({ inlineData: { mimeType: 'image/jpeg', data: 'AAAA' } });
+    expect((await getSettings()).model).toBe('gemini-flash-latest'); // il modello impostato non cambia
+
+    // la volta dopo si parte direttamente da un modello con quota disponibile
+    calls.length = 0;
+    await runAi(await getSettings(), { request: req, timeoutMs: 5000, signal: new AbortController().signal });
+    expect(calls.map((c) => c.model)).toEqual(['gemma-3-27b-it']);
+  });
+
+  it('compito leggero: prima un modello leggero; azzeramento giornaliero alle 8:05 UTC', async () => {
+    const { resetModelState, withModelFallback, nextDailyReset } = await import('../src/lib/model');
+    resetModelState();
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify(list), { status: 200 })));
+    const { getSettings, updateSettings } = await import('../src/lib/settings');
+    await updateSettings({ apiKey: 'AIzaK2', model: 'gemini-flash-latest' });
+    const used = await withModelFallback(await getSettings(), async (m) => m, { leggero: true });
+    expect(used).toBe('gemini-3.8-flash-lite');
+    expect(new Date(nextDailyReset(Date.UTC(2026, 10, 1, 7, 0))).toISOString()).toBe('2026-11-01T08:05:00.000Z');
+    expect(new Date(nextDailyReset(Date.UTC(2026, 10, 1, 9, 0))).toISOString()).toBe('2026-11-02T08:05:00.000Z');
+  });
+});

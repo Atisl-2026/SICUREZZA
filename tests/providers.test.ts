@@ -139,7 +139,7 @@ describe('passaggio automatico tra le AI', () => {
     const notices: string[] = [];
     const a = await runAi(base(), { request: dbReq, timeoutMs: 5000, signal: new AbortController().signal, onNotice: (m) => notices.push(m) });
     expect(a).toMatchObject({ text: 'Risposta di Groq.', fornitore: 'groq', servizio: 'Groq', modello: 'llama-3.3-70b-versatile' });
-    expect(notices[0]).toMatch(/Gemini: raggiunto il limite giornaliero.*Provo con Groq/);
+    expect(notices[0]).toMatch(/Gemini: limite gratuito raggiunto su tutti i modelli provati \(gemini-2\.5-flash, gemini-2\.5-flash-lite\).*Provo con Groq/);
     expect(calls.filter((c) => c.includes(':generateContent'))).toHaveLength(2); // due modelli Gemini, quote separate
 
     calls = [];
@@ -182,5 +182,13 @@ describe('passaggio automatico tra le AI', () => {
     const { runAi } = await import('../src/lib/router');
     await expect(runAi(base({ apiKey: '', riserve: {} }), { request: dbReq, timeoutMs: 5000, signal: new AbortController().signal }))
       .rejects.toMatchObject({ kind: 'chiave', message: expect.stringMatching(/Nessuna AI configurata/) });
+  });
+});
+
+describe('OpenRouter con limite di spesa a 0 $', () => {
+  it('messaggio con la soluzione, trattato come quota (il servizio viene messo in pausa)', () => {
+    const e = classifyChatError('openrouter', 403, { error: { message: 'Key limit exceeded (total limit). Manage it using https://openrouter.ai/… $0.00 of $0.00 used; does not reset.', code: 403 } });
+    expect(e.kind).toBe('quota');
+    expect(e.message).toMatch(/limite di spesa a 0 \$.*Credit limit/);
   });
 });

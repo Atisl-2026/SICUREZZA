@@ -137,6 +137,7 @@ export async function analyzePhotos(
     const first = await runAi(s, {
       request: buildDescribeRequest(images.map(smallOf), note),
       thinking: 'minimal',
+      leggero: true, // basta un modello leggero: la quota del modello principale resta per l'analisi
       timeoutMs: 20000,
       signal,
       skip,

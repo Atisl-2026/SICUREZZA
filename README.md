@@ -120,6 +120,13 @@ soci** che usano la chiave. Il messaggio ora dice quale limite è stato raggiunt
 incluso nel piano gratuito) e quanto aspettare; l'app prova da sola un altro modello Gemini (ha una quota separata)
 e poi le AI di riserva.
 
+**Più modelli con la stessa chiave Gemini.** Ogni modello ha una quota gratuita propria (alcuni Flash recenti solo 20
+richieste al giorno). Quando un modello la esaurisce l'app prova da sola gli altri modelli Gemini e poi i modelli
+**Gemma** di Google (stessa chiave, limiti gratuiti molto più alti, leggono le foto), senza cambiare il modello impostato.
+I modelli esauriti vengono ricordati, anche chiudendo l'app, fino all'azzeramento delle 9 del mattino. Nell'analisi
+foto il primo passaggio (capire cosa c'è nella foto) usa un modello leggero, così la quota del modello principale
+resta per l'analisi.
+
 ### AI gratuite di riserva (Groq, Mistral, OpenRouter)
 
 In *Impostazioni → AI gratuite di riserva* il programmatore può aggiungere altre AI gratuite. Se Gemini non risponde
@@ -135,6 +142,9 @@ In *Impostazioni → AI gratuite di riserva* il programmatore può aggiungere al
 
 1. Crea la chiave, incollala nel riquadro del servizio e tocca **Verifica**: l'app mostra quali modelli userà per le
    domande e per le foto (scelti da sola; puoi cambiarli dal menu **Modello**).
+   **OpenRouter**: alla creazione della chiave lascia vuoto il limite di credito («Credit limit»): con un limite a 0 $
+   la chiave rifiuta anche i modelli gratuiti. **Groq** oggi non ha modelli gratuiti che leggono le foto (va bene per
+   le domande); per le foto usa **Mistral**.
 2. Se la verifica dice «connessione non riuscita… servizio che non accetta richieste dirette dall'app», quel servizio
    non si può usare da un'app senza server: rimuovilo e usa gli altri.
 3. **Pubblica** perché le chiavi arrivino ai soci con la password AI (cifrate, come quella di Gemini).

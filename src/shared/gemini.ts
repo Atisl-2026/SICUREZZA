@@ -64,6 +64,43 @@ export interface GeminiRequest {
   generationConfig?: Record<string, unknown>;
 }
 
+interface SchemaProp { type?: string; description?: string; items?: { type?: string } }
+
+/** Lo schema JSON diventa un'istruzione nel testo (per i modelli che non accettano gli schemi). */
+export function schemaInstruction(schema: unknown): string {
+  const props = (schema as { properties?: Record<string, SchemaProp> })?.properties;
+  if (!props) return 'Rispondi SOLO con un oggetto JSON valido, senza altro testo.';
+  const fields = Object.entries(props).map(([k, p]) => {
+    const t = p.type === 'ARRAY' ? 'elenco di testi' : p.type === 'NUMBER' || p.type === 'INTEGER' ? 'numero' : 'testo';
+    return `- "${k}" (${t})${p.description ? `: ${p.description}` : ''}`;
+  });
+  return `Rispondi SOLO con un oggetto JSON valido, senza altro testo e senza blocchi di codice, con questi campi:\n${fields.join('\n')}`;
+}
+
+/** Modelli Gemma (stessa chiave Gemini, limiti gratuiti molto più alti, leggono le foto). */
+export const isGemma = (model: string) => /(^|\/)gemma/i.test(model.trim());
+
+/**
+ * I modelli Gemma non accettano istruzioni di sistema, risposta JSON con schema, ragionamento e
+ * strumenti: le istruzioni vanno all'inizio del messaggio, lo schema diventa testo.
+ */
+export function adaptRequest(req: GeminiRequest, model: string): GeminiRequest {
+  if (!isGemma(model)) return req;
+  const gc = { ...(req.generationConfig ?? {}) } as Record<string, unknown>;
+  const json = gc.responseMimeType === 'application/json';
+  const intro = [
+    ...(req.systemInstruction?.parts ?? []).map((p) => p.text),
+    json ? schemaInstruction(gc.responseSchema) : ''
+  ].filter(Boolean).join('\n\n');
+  delete gc.responseMimeType;
+  delete gc.responseSchema;
+  delete gc.thinkingConfig;
+  const contents = req.contents.map((c, i) =>
+    i === 0 && intro ? { ...c, parts: [{ text: `ISTRUZIONI:\n${intro}\n\n---\n` }, ...c.parts] } : c
+  );
+  return { contents, generationConfig: gc };
+}
+
 /** Richiesta "Dal database": blocchi come contesto, poi la domanda. */
 export function buildDbRequest(question: string, blocks: ContextBlock[]): GeminiRequest {
   const text = `BLOCCHI DAL DATABASE:\n\n${formatContext(blocks)}\n\n===\n\nDOMANDA: ${question.trim()}`;
@@ -344,7 +381,7 @@ const noThinking = new Set<string>();
 /** Parametro di ragionamento adatto al modello (le famiglie di Gemini usano parametri diversi). */
 export function thinkingConfigFor(model: string, level: ThinkingLevel): Record<string, unknown> | undefined {
   const m = cleanModelName(model);
-  if (noThinking.has(m)) return undefined;
+  if (noThinking.has(m) || isGemma(m)) return undefined;
   if (/gemini-(1\.|2\.0)/i.test(m)) return undefined; // modelli senza ragionamento
   if (/gemini-2\.5-pro/i.test(m)) return { thinkingBudget: 128 }; // minimo consentito
   if (/gemini-2\.5/i.test(m)) return { thinkingBudget: level === 'minimal' ? 0 : 512 };
@@ -376,7 +413,7 @@ async function withThinkingRetry<T>(req: GeminiRequest, opts: CallOptions, run: 
 export async function callGemini(req: GeminiRequest, opts: CallOptions): Promise<GeminiAnswer> {
   return withThinkingRetry(req, opts, async (r) => parseGeminiResponse(await requestJson(
     `${GEMINI_ENDPOINT}/models/${encodeURIComponent(cleanModelName(opts.model))}:generateContent`,
-    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(r) },
+    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(adaptRequest(r, opts.model)) },
     opts
   )));
 }
@@ -430,7 +467,7 @@ async function streamRequest(req: GeminiRequest, opts: StreamOptions): Promise<G
       res = await doFetch(`${GEMINI_ENDPOINT}/models/${encodeURIComponent(cleanModelName(opts.model))}:streamGenerateContent?alt=sse`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-goog-api-key': opts.apiKey.trim() },
-        body: JSON.stringify(req),
+        body: JSON.stringify(adaptRequest(req, opts.model)),
         signal: ctrl.signal
       });
     } catch {
@@ -542,6 +579,19 @@ export async function listModels(opts: CallOptions): Promise<ModelInfo[]> {
 
 /** Modelli adatti all'app: testo e immagini in ingresso, risposta testuale (niente audio, immagini, embedding…). */
 const NOT_SUITABLE = /(image|tts|audio|live|embed|aqa|imagen|veo|learnlm|gemma|robotics|computer-use|native|thinking-exp|nano|banana)/i;
+
+/**
+ * Ordine in cui provare i modelli quando uno ha esaurito la quota gratuita: prima i Gemini
+ * consigliati, poi i Gemma più grandi (che leggono le foto: niente versioni da 1B).
+ */
+export function fallbackModels(models: ModelInfo[]): ModelInfo[] {
+  const size = (id: string) => Number(id.match(/-(\d+)b\b/i)?.[1] ?? 0);
+  const gver = (id: string) => Number(id.match(/gemma-(\d+(?:\.\d+)?)/i)?.[1] ?? 0);
+  const gemma = models
+    .filter((m) => /^gemma-\d/i.test(m.id) && size(m.id) >= 4 && !/-e\d+b|embed|\bn\b|-3n-/i.test(m.id))
+    .sort((a, b) => gver(b.id) - gver(a.id) || size(b.id) - size(a.id));
+  return [...rankModels(models), ...gemma];
+}
 
 function versionOf(id: string): number {
   const m = id.match(/gemini-(\d+(?:\.\d+)?)/i);

@@ -3,7 +3,7 @@
 // le converte; le risposte tornano come GeminiAnswer, così il resto dell'app non cambia.
 // Funzioni pure + fetch: testate in tests/providers.test.ts.
 import {
-  GeminiError, parseQuota, quotaMessage, type GeminiAnswer, type GeminiRequest
+  GeminiError, parseQuota, quotaMessage, schemaInstruction, type GeminiAnswer, type GeminiRequest
 } from './gemini.ts';
 
 export type ProviderId = 'groq' | 'mistral' | 'openrouter';
@@ -79,19 +79,6 @@ export interface ChatBody {
   stream?: boolean;
 }
 
-interface SchemaProp { type?: string; description?: string; items?: { type?: string } }
-
-/** Lo schema JSON di Gemini diventa un'istruzione nel testo (non tutti i modelli gratuiti accettano gli schemi). */
-function schemaInstruction(schema: unknown): string {
-  const props = (schema as { properties?: Record<string, SchemaProp> })?.properties;
-  if (!props) return 'Rispondi SOLO con un oggetto JSON valido, senza altro testo.';
-  const fields = Object.entries(props).map(([k, p]) => {
-    const t = p.type === 'ARRAY' ? 'elenco di testi' : p.type === 'NUMBER' || p.type === 'INTEGER' ? 'numero' : 'testo';
-    return `- "${k}" (${t})${p.description ? `: ${p.description}` : ''}`;
-  });
-  return `Rispondi SOLO con un oggetto JSON valido, senza altro testo e senza blocchi di codice, con questi campi:\n${fields.join('\n')}`;
-}
-
 /** GeminiRequest → corpo "chat completions". */
 export function toChatBody(req: GeminiRequest, model: string, stream: boolean): ChatBody {
   const gc = (req.generationConfig ?? {}) as { temperature?: number; maxOutputTokens?: number; responseSchema?: unknown; responseMimeType?: string };
@@ -152,6 +139,9 @@ export function classifyChatError(p: ProviderId, status: number, body: unknown):
   const msg = `${(e as { message?: string }).message ?? ''} ${(e as ChatResponse['error'])?.metadata?.raw ?? ''}`.trim();
   if (status === 401 || /invalid.*(api[_ ]?key|token)|unauthori[sz]ed|no auth/i.test(msg)) {
     return new GeminiError('chiave', `${nome}: chiave non valida o scaduta. Controllala nelle Impostazioni.`, status);
+  }
+  if (/key limit exceeded|credit limit/i.test(msg)) {
+    return new GeminiError('quota', `${nome}: la chiave ha un limite di spesa a 0 $ e blocca anche i modelli gratuiti. Su ${p === 'openrouter' ? 'openrouter.ai → Keys' : 'il sito del servizio'} modifica la chiave e lascia vuoto il limite di credito («Credit limit»), oppure creane una nuova senza limite.`, status, { periodo: 'giorno' });
   }
   if (status === 402) return new GeminiError('quota', `${nome}: credito o limite gratuito esaurito.`, status);
   if (status === 429) {

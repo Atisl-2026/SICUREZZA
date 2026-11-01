@@ -87,7 +87,14 @@ describe('analisi completa (Gemini simulato, archivio di esempio)', () => {
       texts.map((t) => `data: ${JSON.stringify({ candidates: [{ content: { parts: [{ text: t }] } }] })}\n\n`).join(''),
       { status: 200, headers: { 'Content-Type': 'text/event-stream' } }
     );
+    (await import('../src/lib/model')).resetModelState();
     vi.stubGlobal('fetch', vi.fn(async (url: string, init: RequestInit) => {
+      if (String(url).includes('/models?')) {
+        return new Response(JSON.stringify({ models: [
+          { name: 'models/gemini-2.5-flash', supportedGenerationMethods: ['generateContent'] },
+          { name: 'models/gemini-2.5-flash-lite', supportedGenerationMethods: ['generateContent'] }
+        ] }), { status: 200 });
+      }
       urls.push(url);
       bodies.push(JSON.parse(String(init.body)));
       return bodies.length === 1
@@ -109,7 +116,8 @@ describe('analisi completa (Gemini simulato, archivio di esempio)', () => {
     // passo 1: foto piccola, ragionamento minimo, chiamata normale; passo 2: foto intera, in tempo reale
     expect(bodies[0].contents[0].parts[0]).toEqual({ inlineData: { mimeType: 'image/jpeg', data: 'BBBB' } });
     expect(bodies[0].generationConfig).toMatchObject({ thinkingConfig: { thinkingBudget: 0 } });
-    expect(urls[0]).toMatch(/:generateContent$/);
+    expect(urls[0]).toMatch(/gemini-2\.5-flash-lite:generateContent$/); // passo 1 con un modello leggero
+    expect(urls[1]).toMatch(/gemini-2\.5-flash:streamGenerateContent/); // analisi con il modello principale
     expect(bodies[1].contents[0].parts[0]).toEqual({ inlineData: img });
     expect(bodies[1].generationConfig).toMatchObject({ thinkingConfig: { thinkingBudget: 512 } });
     expect(urls[1]).toMatch(/:streamGenerateContent\?alt=sse$/);
@@ -124,7 +132,13 @@ describe('analisi completa (Gemini simulato, archivio di esempio)', () => {
 
   it('lettura rapida non riuscita (sovraccarico) → l\'analisi prosegue con la nota', async () => {
     const bodies: GeminiRequest[] = [];
-    vi.stubGlobal('fetch', vi.fn(async (_url: string, init: RequestInit) => {
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init: RequestInit) => {
+      if (String(url).includes('/models?')) {
+        return new Response(JSON.stringify({ models: [
+          { name: 'models/gemini-2.5-flash', supportedGenerationMethods: ['generateContent'] },
+          { name: 'models/gemini-2.5-flash-lite', supportedGenerationMethods: ['generateContent'] }
+        ] }), { status: 200 });
+      }
       bodies.push(JSON.parse(String(init.body)));
       if (bodies.length === 1) return new Response(JSON.stringify({ error: { code: 503, status: 'UNAVAILABLE' } }), { status: 503 });
       return new Response(`data: ${JSON.stringify({ candidates: [{ content: { parts: [{ text: '### Cosa si vede\nUn estintore.' }] }, finishReason: 'STOP' }] })}\n\n`, { status: 200 });
@@ -138,6 +152,8 @@ describe('analisi completa (Gemini simulato, archivio di esempio)', () => {
   });
 
   it('quota esaurita al primo passo → errore chiaro, nessuna seconda chiamata', async () => {
+    (await import('../src/lib/model')).resetModelState();
+    (await import('../src/lib/router')).resetRouter();
     const f = vi.fn(async () => new Response(JSON.stringify({ error: { code: 429, status: 'RESOURCE_EXHAUSTED' } }), { status: 429 }));
     vi.stubGlobal('fetch', f);
     const { analyzePhotos } = await import('../src/lib/photo');

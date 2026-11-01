@@ -28,6 +28,8 @@ export interface AiTask {
   prefer?: Fornitore;
   /** servizi già falliti in questa operazione: si provano solo se non resta altro */
   skip?: Set<Fornitore>;
+  /** compito semplice: con Gemini prima un modello leggero (risparmia la quota del modello principale) */
+  leggero?: boolean;
 }
 
 export interface AiAnswer extends GeminiAnswer {
@@ -43,8 +45,21 @@ export function hasAi(s: Settings): boolean {
   return availableAi(s).length > 0;
 }
 
-/** Servizi che hanno esaurito la quota (fino a quando). */
-const cooldown = new Map<Fornitore, number>();
+/** Servizi che hanno esaurito la quota (fino a quando): ricordati anche chiudendo l'app. */
+const COOLDOWN_STORE = 'atisl-ai-in-pausa';
+const cooldown = new Map<Fornitore, number>(loadCooldown());
+function loadCooldown(): [Fornitore, number][] {
+  try {
+    const now = Date.now();
+    return Object.entries(JSON.parse(localStorage.getItem(COOLDOWN_STORE) ?? '{}') as Record<string, number>)
+      .filter(([, t]) => t > now) as [Fornitore, number][];
+  } catch {
+    return [];
+  }
+}
+function saveCooldown() {
+  try { localStorage.setItem(COOLDOWN_STORE, JSON.stringify(Object.fromEntries(cooldown))); } catch { /* niente */ }
+}
 const modelLists = new Map<string, Promise<ChatModel[]>>();
 
 function chatModels(p: ProviderId, apiKey: string): Promise<ChatModel[]> {
@@ -58,10 +73,12 @@ function chatModels(p: ProviderId, apiKey: string): Promise<ChatModel[]> {
   return list;
 }
 
-function cooldownMs(e: GeminiError): number {
+function cooldownUntil(f: Fornitore, e: GeminiError): number {
   const q = e.quota;
-  if (e.status === 402 || q?.limite === 0 || q?.periodo === 'giorno') return 3 * 3600_000;
-  return Math.max(30, q?.attesaS ?? 60) * 1000;
+  // Gemini: i limiti sono per modello, li gestisce withModelFallback; qui solo una pausa breve
+  if (f === 'gemini') return Date.now() + (q?.periodo === 'giorno' ? 15 * 60_000 : Math.max(30, q?.attesaS ?? 60) * 1000);
+  if (e.status === 402 || q?.limite === 0 || q?.periodo === 'giorno') return Date.now() + 3 * 3600_000;
+  return Date.now() + Math.max(30, q?.attesaS ?? 60) * 1000;
 }
 
 const asGeminiError = (e: unknown) =>
@@ -73,7 +90,7 @@ async function viaGemini(s: Settings, t: AiTask): Promise<AiAnswer> {
     used = model;
     const opts = { apiKey: s.apiKey, model, timeoutMs: t.timeoutMs, signal: t.signal, thinking: t.thinking };
     return t.onText ? streamGemini(t.request, { ...opts, onText: t.onText }) : callGemini(t.request, opts);
-  });
+  }, { leggero: t.leggero });
   return { ...answer, fornitore: 'gemini', servizio: 'Gemini', modello: used };
 }
 
@@ -124,13 +141,16 @@ export async function runAi(s: Settings, t: AiTask): Promise<AiAnswer> {
     if (errors.length) t.onNotice?.(`${label(errors[errors.length - 1])} Provo con ${nomeFornitore(f)}…`);
     try {
       const answer = f === 'gemini' ? await viaGemini(s, t) : await viaReserve(f, s, t);
-      cooldown.delete(f);
+      if (cooldown.delete(f)) saveCooldown();
       return answer;
     } catch (e) {
       const err = asGeminiError(e);
       if (err.kind === 'annullata' || t.signal.aborted) throw new GeminiError('annullata', 'Richiesta annullata.');
       t.skip?.add(f);
-      if (err.kind === 'quota') cooldown.set(f, Date.now() + cooldownMs(err));
+      if (err.kind === 'quota') {
+        cooldown.set(f, cooldownUntil(f, err));
+        saveCooldown();
+      }
       errors.push({ f, err });
     }
   }
@@ -148,5 +168,6 @@ export async function runAi(s: Settings, t: AiTask): Promise<AiAnswer> {
 /** Solo per i test. */
 export function resetRouter() {
   cooldown.clear();
+  saveCooldown();
   modelLists.clear();
 }
