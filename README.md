@@ -209,9 +209,11 @@ Per il programmatore e i soci con la password AI, nella scheda **Chiedi** c'è *
    - cerca quelle parole **nell'archivio** (normativa, procedure, schede);
    - chiede a Gemini di confrontare le foto con i brani trovati: **la risposta compare mentre viene scritta**,
      come nell'app di Gemini, senza aspettare la fine.
-3. La risposta ha sempre quattro parti: **Cosa si vede**, **Possibili non conformità** (con gravità e riferimento:
-   il numero apre la scheda dell'archivio; se la norma non è nell'archivio lo dice, senza inventare articoli),
-   **Non valutabile dalle immagini**, **Verifiche consigliate sul posto**.
+3. La risposta ha sempre quattro parti: **Cosa si vede**, **Possibili non conformità** (con gravità e riferimento
+   preciso: **articolo e comma – documento**, per esempio *«Art. 126, comma 1 – D.Lgs. 81/2008 – Titolo IV»*; il numero
+   apre la scheda dell'archivio; se la norma non è nell'archivio lo dice, senza inventare articoli),
+   **Non valutabile dalle immagini**, **Verifiche consigliate sul posto**. Sotto, i **documenti citati** con gli articoli
+   dei brani consultati e la fonte; ogni brano consultato mostra l'articolo a cui appartiene.
 4. **Copia / condividi il testo** per incollarlo in un verbale o in un messaggio.
 
 Da sapere:
@@ -223,6 +225,11 @@ Da sapere:
   rapidità usa un modello «Flash» (Impostazioni → Modello), non «Pro»;
 - le violazioni vengono citate solo se la norma è nell'archivio: per i ponteggi, per esempio, carica le parti del
   D.Lgs. 81/2008 sui ponteggi e le vostre procedure;
+- **articoli**: l'app riconosce da sola le intestazioni «Art. 126 – Parapetti», «Articolo 122», «Allegato XVIII» nel
+  testo dei documenti e indica a Gemini a quale articolo appartiene ogni brano, anche quando il brano inizia a metà
+  articolo. Perché funzioni, nei documenti caricati ogni articolo deve iniziare su una riga nuova con «Art.» o
+  «Articolo» seguito dal numero (come nei testi coordinati ufficiali); nel campo **Fonte** conviene scrivere il
+  riferimento della norma (es. «D.Lgs. 81/2008, testo coordinato»);
 - è un **supporto**: l'AI può non vedere tutto o sbagliare e non sostituisce il sopralluogo né la valutazione del tecnico;
 - ⚠️ sul piano gratuito Google può usare le foto inviate: evita volti riconoscibili, targhe e documenti.
 

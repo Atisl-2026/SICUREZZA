@@ -4,6 +4,7 @@ import type { LocalResult } from '../lib/search';
 import { highlight, snippet } from '../shared/search.ts';
 import { formatDate } from '../lib/format';
 import { Highlighted } from './Highlighted';
+import { articlesOf } from '../lib/ai';
 
 const isUrl = (s: string) => /^https?:\/\//i.test(s.trim());
 
@@ -12,6 +13,8 @@ export function ResultCard({ r, index }: { r: LocalResult; index: number }) {
   const [open, setOpen] = useState(false);
   const short = snippet(r.chunk.testo, r.terms, 320, r.phrases);
   const truncated = short.some((s) => s.text === '… ' || s.text === ' …');
+  const art = articlesOf(r);
+  const articoli = [art.inizio, ...art.nelBrano].filter((x): x is string => !!x);
 
   return (
     <article class="card result-card" aria-labelledby={`res-${index}`}>
@@ -22,6 +25,7 @@ export function ResultCard({ r, index }: { r: LocalResult; index: number }) {
           {r.record.data_aggiornamento && <span>{formatDate(r.record.data_aggiornamento)}</span>}
           {r.chunk.n > 0 && <span>parte {r.chunk.n + 1}</span>}
         </div>
+        {articoli.length > 0 && <div class="result-article">{articoli.join(' · ')}</div>}
       </header>
       <p class="result-text">
         <Highlighted segments={open ? highlight(r.chunk.testo, r.terms) : short} />

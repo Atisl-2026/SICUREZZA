@@ -1,10 +1,10 @@
 import { useState } from 'preact/hooks';
 import type { AiState } from '../lib/ai';
-import { recordHref } from '../lib/route';
 import type { LocalResult } from '../lib/search';
 import { citedIds } from '../shared/gemini.ts';
 import { Markdown } from './Markdown';
 import { ResultCard } from './ResultCard';
+import { CitedDocs } from './CitedDocs';
 
 /** Perché la risposta AI non è disponibile (o null se lo è). */
 export type AiUnavailable = 'offline' | 'nokey' | 'nonabilitato' | null;
@@ -87,16 +87,7 @@ export function DbSection({ results, ai, unavailable, recordCount, onRetry }: Db
             titleOf={(id) => titles.get(id) ?? id}
           />
           {ai.answer.truncated && <p class="muted small">(risposta troncata per lunghezza)</p>}
-          {cited.length > 0 && (
-            <div class="cited">
-              <h4>Record citati</h4>
-              <ol>
-                {cited.map((id) => (
-                  <li key={id}><a href={recordHref(id)}>{titles.get(id) ?? id}</a></li>
-                ))}
-              </ol>
-            </div>
-          )}
+          <CitedDocs cited={cited} results={results} title="Documenti citati" />
           {cited.length === 0 && <p class="muted small">La risposta non cita record specifici: verifica nei blocchi qui sotto.</p>}
           <p class="ai-disclaimer">Risposta generata da Gemini sui contenuti del database: verifica sempre le fonti.</p>
         </article>

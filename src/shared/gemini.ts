@@ -17,6 +17,10 @@ export interface ContextBlock {
   fonte: string;
   data_aggiornamento: string;
   testo: string;
+  /** articolo/allegato in cui inizia il brano (es. "Art. 126 – Parapetti"), ricavato dal testo completo */
+  articolo?: string;
+  /** altri articoli/allegati che iniziano dentro il brano */
+  articoliNelBrano?: string[];
 }
 
 export const SYSTEM_DB = `Sei l'assistente di un archivio interno di documenti (normativa, procedure, schede tecniche, FAQ).
@@ -25,6 +29,7 @@ Regole obbligatorie:
 2. Usa SOLO le informazioni contenute nei BLOCCHI forniti nel messaggio. Non usare conoscenze esterne, non fare supposizioni, non inventare dati, numeri, date, nomi o riferimenti normativi.
 3. Se i blocchi non contengono l'informazione richiesta, o la contengono solo in parte, dillo chiaramente (per esempio: "Nel database non ho trovato informazioni su …") e riporta solo ciò che è presente.
 4. Dopo ogni affermazione cita tra parentesi quadre l'id del record da cui proviene, esattamente come scritto nel blocco, ad esempio [procedure-richiesta-ferie]. Più id: [id-uno][id-due]. Non citare id che non compaiono nei blocchi.
+   Se l'informazione viene da una norma e il blocco indica l'articolo (campo "articolo" o intestazione "Art." / "Allegato" nel testo), scrivi anche l'articolo e, se presente nel testo, il comma o punto, ad esempio: "Art. 126, comma 1 [normativa-dlgs-81]". Non inventare numeri di articoli o commi.
 5. Se blocchi diversi sono in contrasto, segnalalo indicando entrambi gli id e le date di aggiornamento.
 6. Sii chiaro e conciso: frasi brevi, elenchi puntati per passaggi o requisiti, grassetto solo per i punti chiave. Niente premesse inutili.`;
 
@@ -40,7 +45,9 @@ export function formatContext(blocks: ContextBlock[]): string {
         `titolo: ${b.titolo}`,
         b.categoria && `categoria: ${b.categoria}`,
         b.fonte && `fonte: ${b.fonte}`,
-        b.data_aggiornamento && `aggiornato: ${b.data_aggiornamento}`
+        b.data_aggiornamento && `aggiornato: ${b.data_aggiornamento}`,
+        b.articolo && `articolo: ${b.articolo}`,
+        b.articoliNelBrano?.length && `nel brano iniziano anche: ${b.articoliNelBrano.join('; ')}`
       ].filter(Boolean).join(' | ');
       return `[BLOCCO ${i + 1}] ${meta}\n${b.testo.trim()}`;
     })

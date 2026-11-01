@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { Markdown } from '../components/Markdown';
 import { ResultCard } from '../components/ResultCard';
+import { CitedDocs } from '../components/CitedDocs';
+import { articlesByRecord } from '../lib/ai';
 import { analyzePhotos, asGeminiError, MAX_PHOTOS, preparePhoto, type PhotoAnalysis, type PhotoStep, type PreparedPhoto } from '../lib/photo';
-import { recordHref } from '../lib/route';
 import { getSettings } from '../lib/settings';
 import { citedIds, splitCitations, type GeminiError } from '../shared/gemini.ts';
 import { BRAND } from '../branding';
@@ -28,17 +29,32 @@ const STEPS: { id: PhotoStep; label: string }[] = [
   { id: 'analisi', label: 'Analisi delle criticità' }
 ];
 
-/** Testo semplice da copiare o condividere (le citazioni diventano i titoli delle schede). */
+/** Testo semplice da copiare o condividere: citazioni numerate e, in fondo, i documenti con articoli e fonte. */
 function plainReport(r: PhotoAnalysis, note: string): string {
-  const titles = new Map(r.results.map((x) => [x.record.id, x.record.titolo]));
-  const body = splitCitations(r.answer.text, new Set(titles.keys()))
-    .map((p) => (p.type === 'text' ? p.text : `[${p.ids.map((id) => titles.get(id) ?? id).join('; ')}]`))
+  const recs = new Map(r.results.map((x) => [x.record.id, x.record]));
+  const cited = citedIds(r.answer.text, new Set(recs.keys()));
+  const body = splitCitations(r.answer.text, new Set(recs.keys()))
+    .map((p) => (p.type === 'text' ? p.text : `[${p.ids.map((id) => cited.indexOf(id) + 1).join(', ')}]`))
     .join('')
     .replace(/^#{1,6}\s*/gm, '')
     .replace(/\*\*(.+?)\*\*/g, '$1')
     .replace(/\*(.+?)\*/g, '$1');
+  const arts = articlesByRecord(r.results);
+  const docs = cited.map((id, i) => {
+    const rec = recs.get(id)!;
+    const extra = [
+      arts.get(id)?.length ? `articoli dei brani consultati: ${arts.get(id)!.join(', ')}` : '',
+      rec.fonte ? `fonte: ${rec.fonte}` : ''
+    ].filter(Boolean).join('; ');
+    return `${i + 1}. ${rec.titolo}${extra ? ` (${extra})` : ''}`;
+  });
   const date = new Date().toLocaleString('it-IT', { dateStyle: 'short', timeStyle: 'short' });
-  return `${BRAND.nome} – Analisi foto del ${date}${note ? `\nOggetto: ${note}` : ''}\n\n${body}\n\nAnalisi automatica di supporto: non sostituisce il sopralluogo né la valutazione del tecnico.`;
+  return [
+    `${BRAND.nome} – Analisi foto del ${date}${note ? `\nOggetto: ${note}` : ''}`,
+    body.trim(),
+    docs.length ? `Documenti dell'archivio citati:\n${docs.join('\n')}` : '',
+    'Analisi automatica di supporto: non sostituisce il sopralluogo né la valutazione del tecnico.'
+  ].filter(Boolean).join('\n\n');
 }
 
 export function PhotoPage({ online }: { online: boolean }) {
@@ -259,12 +275,7 @@ export function PhotoPage({ online }: { online: boolean }) {
               titleOf={(id) => titles.get(id) ?? id}
             />
             {result.answer.truncated && <p class="muted small">(risposta troncata per lunghezza)</p>}
-            {cited.length > 0 && (
-              <div class="cited">
-                <h4>Schede dell'archivio citate</h4>
-                <ol>{cited.map((id) => <li key={id}><a href={recordHref(id)}>{titles.get(id) ?? id}</a></li>)}</ol>
-              </div>
-            )}
+            <CitedDocs cited={cited} results={result.results} title="Documenti dell'archivio citati" />
             {result.results.length === 0 && (
               <p class="notice small">Nell'archivio non ci sono schede pertinenti: le criticità indicate non hanno riferimenti normativi. Carica la normativa specifica (es. ponteggi) per avere i riferimenti.</p>
             )}

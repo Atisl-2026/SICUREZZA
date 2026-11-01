@@ -675,3 +675,8 @@ a.link-btn.apk-link { display: inline-flex; align-items: center; justify-content
 /* risposta che arriva in tempo reale */
 .streaming { display: flex; align-items: center; gap: 8px; margin: 10px 0 0; }
 .streaming .spinner { width: 14px; height: 14px; border-width: 2px; color: var(--primary); flex: none; }
+
+/* articolo di riferimento dei brani e dei documenti citati */
+.result-article { margin-top: 6px; font-size: 0.85rem; font-weight: 600; color: var(--primary); overflow-wrap: anywhere; }
+.cited-meta { font-size: 0.8rem; color: var(--text-muted); overflow-wrap: anywhere; margin-top: 2px; }
+.cited li { margin-bottom: 6px; }

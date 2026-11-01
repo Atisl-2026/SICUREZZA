@@ -43,17 +43,18 @@ Analizzi le immagini di un luogo di lavoro confrontandole con i BRANI DELL'ARCHI
 Regole obbligatorie:
 1. Rispondi in italiano.
 2. Elenca solo le POSSIBILI non conformità che si vedono davvero nelle immagini. Non inventare elementi non visibili.
-3. Per ogni non conformità cita tra parentesi quadre l'id del record dell'archivio che contiene il requisito, esattamente come scritto nel brano, ad esempio [normativa-dlgs-81-allegato-xviii]. Non citare id che non compaiono nei brani.
-4. Se un problema è evidente ma nessun brano dell'archivio contiene il requisito, scrivi "Riferimento: non presente nell'archivio". NON citare articoli di legge, numeri o norme che non compaiono nei brani.
-5. Distingui ciò che è certo da ciò che è dubbio ("sembra", "non si vede chiaramente"). Se le immagini non permettono una valutazione, dillo.
-6. Non dare giudizi definitivi di colpevolezza: si tratta di criticità da verificare sul posto.
+3. Per ogni non conformità indica il RIFERIMENTO PRECISO: articolo (o allegato e punto) e comma, presi dal campo "articolo" del brano o dalle intestazioni "Art." / "Allegato" e dai numeri dei commi nel testo del brano; poi il titolo del documento; poi l'id del record tra parentesi quadre, esattamente come scritto nel brano. Esempio: *Riferimento*: Art. 126, comma 1 – «D.Lgs. 81/2008 – Titolo IV» [normativa-dlgs-81-titolo-iv]. Non citare id che non compaiono nei brani.
+4. Se il brano pertinente non riporta il numero dell'articolo, scrivi il titolo del documento e l'id, aggiungendo "(articolo non indicato nel documento)". Se nessun brano contiene il requisito scrivi "Riferimento: non presente nell'archivio".
+5. NON citare articoli, commi, allegati o norme che non compaiono nei brani: niente riferimenti a memoria.
+6. Distingui ciò che è certo da ciò che è dubbio ("sembra", "non si vede chiaramente"). Se le immagini non permettono una valutazione, dillo.
+7. Non dare giudizi definitivi di colpevolezza: si tratta di criticità da verificare sul posto.
 Usa ESATTAMENTE questa struttura in Markdown:
 
 ### Cosa si vede
 (2-4 frasi)
 
 ### Possibili non conformità
-1. **Titolo breve** — descrizione di cosa si vede e perché è un problema. *Gravità*: alta/media/bassa. *Riferimento*: [id] oppure "non presente nell'archivio".
+1. **Titolo breve** — descrizione di cosa si vede e perché è un problema. *Gravità*: alta/media/bassa. *Riferimento*: Art. … , comma … – «titolo del documento» [id] oppure "non presente nell'archivio".
 (se non ne trovi, scrivi "Nessuna non conformità evidente dalle immagini.")
 
 ### Non valutabile dalle immagini
