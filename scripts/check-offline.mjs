@@ -52,6 +52,9 @@ try {
   ok('service worker attivo e in controllo della pagina');
 
   // primo accesso (serve la rete): modalità demo
+  await page.getByText('Benvenuti in').waitFor();
+  ok('pagina di benvenuto');
+  await page.getByRole('button', { name: 'Entra', exact: true }).click();
   await page.getByRole('button', { name: 'Prova la demo' }).click();
   await page.waitForSelector('.tabbar');
   ok('accesso demo con i contenuti pubblicati');

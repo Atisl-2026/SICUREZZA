@@ -89,7 +89,8 @@ se un modello smette di funzionare o esaurisce spesso la quota, scrivine un altr
 
 ### I tre accessi
 
-Alla prima apertura l'app mostra la schermata di accesso.
+Alla prima apertura (e dopo **Esci**) l'app mostra la pagina di **benvenuto**; con **Entra** si passa alla scelta dell'accesso.
+Chi ha già effettuato l'accesso apre l'app direttamente sui contenuti.
 
 | Accesso | Come si entra | Cosa vede e cosa può fare |
 |---|---|---|

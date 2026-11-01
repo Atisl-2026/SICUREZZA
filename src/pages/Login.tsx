@@ -4,6 +4,7 @@ import { WrongPasswordError } from '../shared/crypto.ts';
 import { NEW_TOKEN_URL } from '../shared/github.ts';
 import { asset, BRAND } from '../branding';
 import { Contacts } from '../components/Contacts';
+import { WelcomePage } from './Welcome';
 
 type Busy = null | 'demo' | 'socio' | 'admin';
 
@@ -12,8 +13,9 @@ function errorText(e: unknown): string {
   return (e as Error)?.message || 'Accesso non riuscito.';
 }
 
-/** Schermata iniziale: scelta dell'accesso (socio, demo, programmatore). */
+/** Schermata iniziale: benvenuto, poi scelta dell'accesso (socio, demo, programmatore). */
 export function LoginPage({ online }: { online: boolean }) {
+  const [welcome, setWelcome] = useState(true);
   const [busy, setBusy] = useState<Busy>(null);
   const [error, setError] = useState('');
   const [password, setPassword] = useState('');
@@ -38,14 +40,15 @@ export function LoginPage({ online }: { online: boolean }) {
     }
   };
 
+  if (welcome) return <WelcomePage onEnter={() => { setWelcome(false); window.scrollTo(0, 0); }} />;
+
   return (
     <div class="login">
-      <header class="login-brand">
-        <div class="logo-tile">
-          <img src={asset(BRAND.logoCompleto)} alt="ATISL – CONFSAL" width="190" height="200" />
-        </div>
+      <button type="button" class="link-btn login-back" onClick={() => setWelcome(true)}>‹ Indietro</button>
+      <header class="login-brand login-brand-compact">
+        <img src={asset(BRAND.logo)} alt="" width="64" height="57" />
         <h1>{BRAND.nome}</h1>
-        <p class="muted">{BRAND.sottotitolo}</p>
+        <p class="muted small">Scegli come accedere</p>
       </header>
 
       {!online && <p class="notice" role="status">Per il primo accesso serve la connessione a internet.</p>}
