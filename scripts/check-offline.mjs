@@ -1,6 +1,7 @@
 // Verifica end-to-end del funzionamento offline della build.
 // Uso: BASE_PATH=/consulta/ npm run build && npm run check:offline
 import { spawn } from 'node:child_process';
+import path from 'node:path';
 import { createRequire } from 'node:module';
 const { chromium } = createRequire(import.meta.url)('playwright');
 
@@ -8,15 +9,27 @@ const base = process.env.BASE_PATH || '/';
 const port = 4199;
 const url = `http://localhost:${port}${base}`;
 
-const server = spawn('npx', ['vite', 'preview', '--port', String(port), '--strictPort'], {
+// Se la porta è occupata (es. un'anteprima rimasta aperta) il controllo verificherebbe la build sbagliata.
+try {
+  await fetch(`http://localhost:${port}/`);
+  console.error(`✗ La porta ${port} è già in uso: chiudi l'altra anteprima e riprova.`);
+  process.exit(1);
+} catch { /* porta libera */ }
+
+// Vite avviato direttamente (non tramite npx) così server.kill() chiude davvero il server.
+const viteBin = path.join(path.dirname(createRequire(import.meta.url).resolve('vite/package.json')), 'bin', 'vite.js');
+const server = spawn(process.execPath, [viteBin, 'preview', '--port', String(port), '--strictPort'], {
   env: { ...process.env, BASE_PATH: base },
   stdio: 'ignore'
 });
+let exited = false;
+server.on('exit', () => { exited = true; });
 const fail = (msg) => { console.error('✗', msg); server.kill(); process.exit(1); };
 const ok = (msg) => console.log('✓', msg);
 
 try {
   for (let i = 0; i < 50; i++) {
+    if (exited) fail('il server di anteprima non è partito (hai eseguito "npm run build"?)');
     try { if ((await fetch(url)).ok) break; } catch {}
     await new Promise((r) => setTimeout(r, 200));
   }
