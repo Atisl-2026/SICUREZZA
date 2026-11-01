@@ -5,6 +5,7 @@ import { db } from '../lib/db';
 import type { RemotePlan } from '../shared/merge.ts';
 import { WrongPasswordError } from '../shared/crypto.ts';
 import type { Ruolo } from '../lib/access';
+import { Contacts } from './Contacts';
 
 type Disponibile = Extract<RemoteCheck, { stato: 'disponibile' }>;
 type PasswordCambiata = Extract<RemoteCheck, { stato: 'password-cambiata' }>;
@@ -112,6 +113,7 @@ export function RemoteUpdate({ ruolo }: { ruolo: Ruolo }) {
           <button type="button" class="btn" disabled={busy} onClick={() => setPwChanged(null)}>Più tardi</button>
           <button type="submit" class="btn btn-primary" disabled={busy || !newPassword}>{busy ? 'Verifica…' : 'Conferma'}</button>
         </div>
+        {ruolo === 'socio' && <Contacts intro="Non hai la nuova password?" />}
       </form>
     );
   }

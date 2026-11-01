@@ -1,4 +1,8 @@
-# Consulta
+# ATISL Sicurity
+
+<img src="public/brand/logo-completo.png" alt="ATISL – CONFSAL" width="160">
+
+**ATISL – Associazione Tecnici e Ispettori per la Sicurezza sul Lavoro**
 
 App per consultare **normativa, procedure, schede tecniche e FAQ** dal telefono, **anche senza connessione**,
 con risposte in linguaggio naturale generate da **Google Gemini** quando sei online.
@@ -35,7 +39,7 @@ e il database, che da lì in poi funzionano anche offline.
 1. Apri l'indirizzo dell'app in **Chrome**.
 2. Tocca il menu **⋮** in alto a destra → **Installa app** (su alcune versioni: **Aggiungi a schermata Home** → **Installa**).
    In alternativa usa il pulsante **Installa** nella scheda *Impostazioni* dell'app.
-3. L'icona **Consulta** compare tra le app e nella schermata Home.
+3. L'icona **ATISL** compare tra le app e nella schermata Home.
 
 ### iPhone e iPad (Safari)
 
@@ -277,6 +281,11 @@ Sicurezza della pubblicazione:
 con la vecchia non sono recuperabili (sono cifrate): ripartirai dalle schede demo e reimporterai le altre
 da un backup o da `db-generato.json`. Alla prima pubblicazione la nuova password vale per tutti.
 
+### Assistenza
+
+Per password dimenticate, password AI o problemi con l'app: **inlispettori@gmail.com** · **349 866 9025**
+(gli stessi contatti compaiono nella schermata di accesso e in *Impostazioni → Assistenza*).
+
 ---
 
 ## 5. Pubblicare l'app su GitHub Pages (deploy)
@@ -416,6 +425,13 @@ tests/           test di ricerca, Gemini, accessi e cifratura, database, import,
 - pesi: titolo ×2, tag ×1,5, testo ×1, categoria ×0,5;
 - risultati: almeno i primi 6 blocchi pertinenti, al massimo 8, al massimo 3 dallo stesso record;
 - l'indice è salvato in IndexedDB e ricostruito solo quando i dati cambiano.
+
+### Personalizzare nome, logo e colori
+
+- **Nome e contatti**: `src/branding.ts` (nome, sottotitolo, email e telefono di assistenza) e `vite.config.ts` (nome nel manifest).
+- **Logo**: sostituisci `public/brand/logo-atisl.png` (triangolo, sfondo trasparente) e `public/brand/logo-completo.png`
+  (logo con CONFSAL), poi rigenera le icone con `npm run icons`.
+- **Colori**: variabili `--primary` (blu CONFSAL `#1E5C86`) e `--accent` (giallo ATISL `#EDC336`) in `src/styles.css`.
 
 ### Note di compatibilità
 

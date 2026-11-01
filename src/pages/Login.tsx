@@ -2,6 +2,8 @@ import { useState } from 'preact/hooks';
 import { defaultRepo, loginAdmin, loginAdminReset, loginDemo, loginSocio } from '../lib/access';
 import { WrongPasswordError } from '../shared/crypto.ts';
 import { NEW_TOKEN_URL } from '../shared/github.ts';
+import { asset, BRAND } from '../branding';
+import { Contacts } from '../components/Contacts';
 
 type Busy = null | 'demo' | 'socio' | 'admin';
 
@@ -39,9 +41,11 @@ export function LoginPage({ online }: { online: boolean }) {
   return (
     <div class="login">
       <header class="login-brand">
-        <img src={`${import.meta.env.BASE_URL}icons/icon-192.png`} alt="" width="88" height="88" />
-        <h1>Consulta</h1>
-        <p class="muted">Archivio di normativa, procedure e schede tecniche</p>
+        <div class="logo-tile">
+          <img src={asset(BRAND.logoCompleto)} alt="ATISL – CONFSAL" width="190" height="200" />
+        </div>
+        <h1>{BRAND.nome}</h1>
+        <p class="muted">{BRAND.sottotitolo}</p>
       </header>
 
       {!online && <p class="notice" role="status">Per il primo accesso serve la connessione a internet.</p>}
@@ -64,6 +68,7 @@ export function LoginPage({ online }: { online: boolean }) {
         <button class="btn btn-primary btn-block" type="submit" disabled={!password || !!busy || !online}>
           {busy === 'socio' ? 'Verifica…' : 'Entra'}
         </button>
+        <Contacts intro="Password dimenticata o non ancora ricevuta?" />
       </form>
 
       <div class="card login-card">

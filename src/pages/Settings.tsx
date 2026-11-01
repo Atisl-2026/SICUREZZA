@@ -7,6 +7,8 @@ import { requestPersistence } from '../lib/db';
 import { useLiveQuery } from '../lib/live';
 import { updateSettings, useSettings } from '../lib/settings';
 import { WrongPasswordError } from '../shared/crypto.ts';
+import { Contacts } from '../components/Contacts';
+import { BRAND } from '../branding';
 
 function formatBytes(n?: number): string {
   if (n == null) return '—';
@@ -56,7 +58,7 @@ export function SettingsPage({ online, access }: Props) {
 
       <InstallCard />
 
-      {access.ruolo === 'socio' && <AiUnlock access={access} online={online} />}
+      {access.ruolo === 'socio' && <AiUnlock access={access} />}
       {access.ruolo === 'admin' && <GeminiSettings online={online} />}
       {access.ruolo === 'admin' && <AdminSecurity access={access} online={online} />}
 
@@ -97,18 +99,26 @@ export function SettingsPage({ online, access }: Props) {
       </div>
 
       <div class="card">
+        <h3>Assistenza</h3>
+        <Contacts intro="Per password, accessi o problemi con l'app." />
+      </div>
+
+      <div class="card">
         <h3>Informazioni</h3>
         <dl class="kv small">
-          <dt>Versione app</dt>
+          <dt>App</dt>
+          <dd>{BRAND.nome}</dd>
+          <dt>Versione</dt>
           <dd>{__APP_VERSION__}</dd>
         </dl>
+        <p class="muted small">{BRAND.sottotitolo}</p>
       </div>
     </section>
   );
 }
 
 /** Soci: sblocco delle risposte AI con la password AI data dal programmatore. */
-function AiUnlock({ access, online }: { access: Accesso; online: boolean }) {
+function AiUnlock({ access }: { access: Accesso }) {
   const shared = useLiveQuery(getAiEnvelope);
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
@@ -149,9 +159,10 @@ function AiUnlock({ access, online }: { access: Accesso; online: boolean }) {
             <input type="password" autocomplete="off" value={password} onInput={(e) => setPassword((e.target as HTMLInputElement).value)} />
           </label>
           {error && <p class="notice notice-error" role="alert">{error}</p>}
-          <button class="btn btn-primary btn-block" type="submit" disabled={!password || busy || !online}>
+          <button class="btn btn-primary btn-block" type="submit" disabled={!password || busy}>
             {busy ? 'Verifica…' : 'Attiva le risposte AI'}
           </button>
+          <Contacts intro="Non hai la password AI?" />
         </form>
       )}
     </div>

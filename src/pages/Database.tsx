@@ -79,7 +79,7 @@ function DatabaseHome({ online, isAdmin }: Props) {
   const onExport = async () => {
     const backup = await buildBackup();
     const stamp = new Date().toISOString().slice(0, 10);
-    await saveFile(JSON.stringify(backup, null, 2), `consulta-backup-${stamp}.json`);
+    await saveFile(JSON.stringify(backup, null, 2), `atisl-backup-${stamp}.json`);
   };
 
   return (

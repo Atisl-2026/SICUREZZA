@@ -45,11 +45,11 @@ export default defineConfig({
     VitePWA({
       registerType: 'prompt',
       injectRegister: false,
-      includeAssets: ['icons/*.png', 'icons/icon.svg'],
+      includeAssets: ['icons/*.png', 'brand/*.png'],
       manifest: {
-        name: 'Consulta – Archivio con AI',
-        short_name: 'Consulta',
-        description: 'Consulta normativa, procedure, schede tecniche e FAQ anche offline, con risposte AI Gemini.',
+        name: 'ATISL Sicurity',
+        short_name: 'ATISL',
+        description: 'ATISL – Associazione Tecnici e Ispettori per la Sicurezza sul Lavoro: normativa, procedure e schede tecniche anche offline, con risposte AI.',
         lang: 'it',
         dir: 'ltr',
         start_url: base,
@@ -57,8 +57,8 @@ export default defineConfig({
         id: base,
         display: 'standalone',
         orientation: 'portrait',
-        background_color: '#f7f7f5',
-        theme_color: '#1f5f8b',
+        background_color: '#ffffff',
+        theme_color: '#1e5c86',
         categories: ['productivity', 'education', 'reference'],
         icons: [
           { src: 'icons/icon-192.png', sizes: '192x192', type: 'image/png' },

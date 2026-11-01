@@ -4,6 +4,7 @@ import { IconAsk, IconDatabase, IconSettings } from './components/Icons';
 import { UpdateBanner } from './components/UpdateBanner';
 import { RemoteUpdate } from './components/RemoteUpdate';
 import { RUOLO_LABEL, useAccess } from './lib/access';
+import { asset, BRAND } from './branding';
 import { useOnline } from './lib/online';
 import { AskPage } from './pages/Ask';
 import { DatabasePage } from './pages/Database';
@@ -59,7 +60,10 @@ export function App() {
   return (
     <div class="app">
       <header class="topbar">
-        <h1>{tab === 'chiedi' ? 'Consulta' : current.label}</h1>
+        <div class="brand-title">
+          <img src={asset(BRAND.logo)} alt="" width="32" height="29" />
+          <h1>{tab === 'chiedi' ? BRAND.nome : current.label}</h1>
+        </div>
         <div class="topbar-right">
           <span class={`role-badge role-${access.ruolo}`}>{RUOLO_LABEL[access.ruolo]}</span>
           <span class={`badge ${online ? 'badge-online' : 'badge-offline'}`} role="status" aria-live="polite">
