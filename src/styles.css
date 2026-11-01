@@ -284,3 +284,73 @@ mark { background: var(--mark); color: inherit; border-radius: 3px; padding: 0 2
 dl.kv { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; margin: 0; }
 dl.kv dt { color: var(--text-muted); }
 dl.kv dd { margin: 0; text-align: right; font-weight: 600; }
+
+/* ===== Fase 2: database ===== */
+.center { text-align: center; }
+.break { overflow-wrap: anywhere; }
+.banner-col { flex-direction: column; align-items: stretch; }
+.banner-col .btn-row { justify-content: flex-end; }
+.banner-error, .notice-error { background: var(--danger-soft); color: var(--danger); }
+.notice { margin: 12px 0 0; }
+.notice-error { margin-top: 12px; }
+
+.actions-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.actions-grid .btn { padding: 0 10px; font-size: 0.95rem; }
+@media (max-width: 360px) { .actions-grid { grid-template-columns: 1fr; } }
+
+.filters { display: flex; gap: 8px; margin: 4px 0 14px; }
+.filters input, .filters select,
+.field input, .record-form input, .record-form textarea {
+  min-height: 48px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  width: 100%;
+}
+.filters input { flex: 2; }
+.filters select { flex: 1; min-width: 0; }
+.filters input:focus, .filters select:focus, .field input:focus,
+.record-form input:focus, .record-form textarea:focus { outline: 2px solid var(--primary); outline-offset: -1px; }
+
+.card-flush { padding: 4px 0; }
+.record-list a {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 16px;
+  min-height: 56px;
+  text-decoration: none;
+  color: var(--text);
+}
+.record-list a:active { background: var(--surface-2); }
+.rl-title { font-weight: 600; }
+.rl-meta { font-size: 0.85rem; color: var(--text-muted); display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.btn-flat { border: 0; border-top: 1px solid var(--border); border-radius: 0; background: none; color: var(--primary); }
+
+.chip {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.back { display: inline-flex; align-items: center; min-height: 44px; text-decoration: none; font-weight: 600; margin-bottom: 4px; }
+.record-title { font-size: 1.35rem; }
+.record-text { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.6; }
+dl.kv.card dd { overflow-wrap: anywhere; }
+
+.record-form label, .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; font-weight: 600; }
+.record-form label > input, .record-form label > textarea, .field input { font-weight: 400; }
+.record-form textarea { resize: vertical; line-height: 1.5; }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+@media (max-width: 420px) { .form-row { grid-template-columns: 1fr; } }
+
+.import-report { margin-top: 12px; padding: 12px; border-radius: 12px; background: var(--ok-soft); }
+.import-report ul { margin: 6px 0 10px; padding-left: 1.2em; }
+
+.danger-zone summary { cursor: pointer; font-weight: 600; color: var(--danger); min-height: 32px; }

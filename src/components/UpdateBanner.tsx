@@ -1,3 +1,4 @@
+import { useEffect } from 'preact/hooks';
 import { useRegisterSW } from 'virtual:pwa-register/preact';
 
 /**
@@ -19,6 +20,12 @@ export function UpdateBanner() {
     }
   });
 
+  useEffect(() => {
+    if (!offlineReady) return;
+    const t = setTimeout(() => setOfflineReady(false), 6000);
+    return () => clearTimeout(t);
+  }, [offlineReady]);
+
   if (needRefresh) {
     return (
       <div class="banner" role="status">
@@ -34,7 +41,7 @@ export function UpdateBanner() {
   if (offlineReady) {
     return (
       <div class="banner" role="status">
-        <span>App pronta: ora funziona anche offline.</span>
+        <span class="small">App pronta: ora funziona anche offline.</span>
         <button class="btn" onClick={() => setOfflineReady(false)}>OK</button>
       </div>
     );

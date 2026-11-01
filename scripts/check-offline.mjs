@@ -50,7 +50,7 @@ try {
     await page.waitForTimeout(100);
   }
   await page.goto(url + '#database');
-  await page.waitForSelector('text=Il database locale');
+  await page.waitForSelector('text=Versione database');
   ok('navigazione tra le schede e deep link offline funzionanti');
 
   await context.setOffline(false);

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'preact/hooks';
 import type { ComponentType } from 'preact';
 import { IconAsk, IconDatabase, IconSettings } from './components/Icons';
 import { UpdateBanner } from './components/UpdateBanner';
+import { RemoteUpdate } from './components/RemoteUpdate';
 import { useOnline } from './lib/online';
 import { AskPage } from './pages/Ask';
 import { DatabasePage } from './pages/Database';
@@ -32,7 +33,7 @@ export function App() {
   }, []);
 
   const go = (t: Tab) => {
-    if (t !== tab) location.hash = t;
+    if (location.hash.replace('#', '') !== t) location.hash = t;
     window.scrollTo(0, 0);
   };
 
@@ -49,8 +50,9 @@ export function App() {
 
       <main>
         <UpdateBanner />
+        <RemoteUpdate />
         {tab === 'chiedi' && <AskPage online={online} />}
-        {tab === 'database' && <DatabasePage />}
+        {tab === 'database' && <DatabasePage online={online} />}
         {tab === 'impostazioni' && <SettingsPage />}
       </main>
 

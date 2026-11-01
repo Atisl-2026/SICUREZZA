@@ -1,10 +1,34 @@
-import { defineConfig } from 'vite';
+import { existsSync, readFileSync } from 'node:fs';
+import { defineConfig, type Plugin } from 'vite';
 import preact from '@preact/preset-vite';
 import { VitePWA } from 'vite-plugin-pwa';
 import pkg from './package.json' with { type: 'json' };
 
 // Su GitHub Pages l'app vive in /<nome-repo>/: il workflow imposta BASE_PATH.
 const base = process.env.BASE_PATH || '/';
+
+/**
+ * Pubblica data/db.json all'indirizzo <base>data/db.json:
+ * servito dal dev server e copiato in dist/ alla build (fuori dal precache del service worker).
+ */
+function databaseFile(): Plugin {
+  const file = new URL('./data/db.json', import.meta.url);
+  return {
+    name: 'consulta-database',
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        if (req.url?.split('?')[0] !== `${base}data/db.json` || !existsSync(file)) return next();
+        res.setHeader('Content-Type', 'application/json; charset=utf-8');
+        res.setHeader('Cache-Control', 'no-store');
+        res.end(readFileSync(file));
+      });
+    },
+    generateBundle() {
+      if (existsSync(file)) this.emitFile({ type: 'asset', fileName: 'data/db.json', source: readFileSync(file) });
+      else this.warn('data/db.json non trovato: esegui "npm run build-db" per generarlo.');
+    }
+  };
+}
 
 export default defineConfig({
   base,
@@ -13,6 +37,7 @@ export default defineConfig({
   },
   plugins: [
     preact(),
+    databaseFile(),
     VitePWA({
       registerType: 'prompt',
       injectRegister: false,
