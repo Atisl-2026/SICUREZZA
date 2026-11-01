@@ -89,8 +89,15 @@ export const FIELD_ALIASES: Record<keyof DbRecord, string[]> = {
   fonte: ['fonte', 'source', 'riferimento', 'url', 'link', 'origine documento'],
   data_aggiornamento: [
     'data_aggiornamento', 'data aggiornamento', 'aggiornamento', 'data', 'date', 'updated', 'updated_at', 'ultima modifica'
-  ]
+  ],
+  demo: ['demo', 'visibile demo', 'visibile in demo', 'pubblico']
 };
+
+/** "sì", "si", "x", "true", "1", "yes" → true */
+export function parseBool(v: unknown): boolean {
+  if (typeof v === 'boolean') return v;
+  return /^(s[iì]|x|true|1|yes|y|vero)$/i.test(String(v ?? '').trim());
+}
 
 const keyNorm = (k: string) => stripAccents(k).toLowerCase().trim().replace(/[\s_-]+/g, ' ');
 
@@ -151,6 +158,7 @@ export function normalizeRecord(raw: unknown, defaults: Partial<DbRecord> = {}):
     fonte: String(f.fonte ?? '').trim() || defaults.fonte || '',
     data_aggiornamento: parseDate(f.data_aggiornamento) || defaults.data_aggiornamento || ''
   };
+  if (f.demo != null ? parseBool(f.demo) : defaults.demo) record.demo = true;
   return { record, origine, modificato };
 }
 
@@ -211,6 +219,7 @@ export function sameContent(a: DbRecord, b: DbRecord): boolean {
     a.categoria === b.categoria &&
     a.fonte === b.fonte &&
     a.data_aggiornamento === b.data_aggiornamento &&
+    !!a.demo === !!b.demo &&
     a.tag.length === b.tag.length &&
     a.tag.every((t, i) => t === b.tag[i])
   );
@@ -219,5 +228,5 @@ export function sameContent(a: DbRecord, b: DbRecord): boolean {
 /** Estrae solo i campi dello schema (senza metadati locali). */
 export function pickSchema(r: DbRecord): DbRecord {
   const { id, titolo, testo, categoria, tag, fonte, data_aggiornamento } = r;
-  return { id, titolo, testo, categoria, tag: [...tag], fonte, data_aggiornamento };
+  return { id, titolo, testo, categoria, tag: [...tag], fonte, data_aggiornamento, ...(r.demo ? { demo: true } : {}) };
 }

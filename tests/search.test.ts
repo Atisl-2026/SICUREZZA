@@ -43,7 +43,7 @@ describe('ricerca sui contenuti di esempio', () => {
   const top = (q: string) => retrieve(index, q)[0]?.recordId;
 
   beforeAll(() => {
-    const db: DbFile = JSON.parse(readFileSync('data/db.json', 'utf8'));
+    const db: DbFile = JSON.parse(readFileSync('tests/fixtures/esempio.json', 'utf8'));
     records = db.records;
     const chunks = records.flatMap((r) => chunksForRecord(r.id, r.testo));
     index = buildIndex(toSearchDocs(chunks, new Map(records.map((r) => [r.id, r]))));

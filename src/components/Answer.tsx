@@ -7,7 +7,7 @@ import { Markdown } from './Markdown';
 import { ResultCard } from './ResultCard';
 
 /** Perché la risposta AI non è disponibile (o null se lo è). */
-export type AiUnavailable = 'offline' | 'nokey' | null;
+export type AiUnavailable = 'offline' | 'nokey' | 'nonabilitato' | null;
 
 interface DbProps {
   results: LocalResult[];
@@ -46,7 +46,7 @@ export function DbSection({ results, ai, unavailable, recordCount, onRetry }: Db
       )}
       {results.length > 0 && unavailable === 'nokey' && (
         <p class="ai-hint" role="note">
-          Per una risposta AI aggiungi la chiave Gemini nelle <a href="#impostazioni">Impostazioni</a>.
+          Per una risposta AI inserisci la chiave Gemini nelle <a href="#impostazioni">Impostazioni</a>.
         </p>
       )}
 

@@ -1,69 +1,66 @@
-import { ensureUniqueIds, compareVersions, parseDbJson } from '../shared/normalize.ts';
+import { keyMatches } from '../shared/crypto.ts';
 import { planRemote, type RemotePlan } from '../shared/merge.ts';
+import { compareVersions, ensureUniqueIds } from '../shared/normalize.ts';
+import { openSoci, type SociFile } from '../shared/publish.ts';
+import type { Envelope } from '../shared/crypto.ts';
 import type { DbRecord } from '../shared/types.ts';
+import { fetchDemo, fetchSoci, getAccess, NotPublishedError, refreshAiShare, reenterSociPassword } from './access';
 import { db, deleteRecords, getMeta, putRecords, setMeta } from './db';
-import { defaultRemoteUrl, getSettings } from './settings';
 
 export type RemoteCheck =
-  | { stato: 'disponibile'; versione: string; versioneLocale?: string; records: DbRecord[]; scartati: number }
+  | { stato: 'disponibile'; versione: string; versioneLocale?: string; records: DbRecord[]; ai?: Envelope }
   | { stato: 'aggiornato'; versione: string }
+  | { stato: 'password-cambiata'; file: SociFile }
+  | { stato: 'nessun-accesso' }
   | { stato: 'errore'; messaggio: string };
 
-const TIMEOUT_MS = 20000;
-
-/** Scarica il db.json remoto e confronta la versione con quella locale. Non modifica nulla. */
+/** Scarica i contenuti del proprio accesso e confronta la versione con quella locale. Non modifica nulla. */
 export async function checkRemote(): Promise<RemoteCheck> {
+  const a = await getAccess();
+  if (!a) return { stato: 'nessun-accesso' };
   if (!navigator.onLine) return { stato: 'errore', messaggio: 'Sei offline.' };
-  const { remoteUrl } = await getSettings();
-  const url = new URL(remoteUrl.trim() || defaultRemoteUrl());
-  url.searchParams.set('_', String(Date.now())); // evita cache intermedie (iOS, CDN di GitHub)
+  const versioneLocale = await getMeta<string | undefined>('versione', undefined);
+  const isNewer = (v: string) => !versioneLocale || compareVersions(v, versioneLocale) > 0;
 
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
-  let data: unknown;
   try {
-    const res = await fetch(url, { cache: 'no-store', signal: ctrl.signal });
-    if (res.status === 404) return { stato: 'errore', messaggio: 'File del database remoto non trovato (404). Controlla l\'URL nelle Impostazioni.' };
-    if (!res.ok) return { stato: 'errore', messaggio: `Il server ha risposto con errore ${res.status}.` };
-    data = await res.json();
+    if (a.ruolo === 'demo') {
+      const demo = await fetchDemo();
+      if (!isNewer(demo.versione)) return { stato: 'aggiornato', versione: versioneLocale! };
+      ensureUniqueIds(demo.records);
+      return { stato: 'disponibile', versione: demo.versione, versioneLocale, records: demo.records };
+    }
+    const file = await fetchSoci();
+    if (!isNewer(file.versione)) return { stato: 'aggiornato', versione: versioneLocale! };
+    if (!keyMatches(a.sociKey, file.cifrato)) return { stato: 'password-cambiata', file };
+    const payload = await openSoci(file, a.sociKey!);
+    return { stato: 'disponibile', versione: file.versione, versioneLocale, records: payload.records, ai: payload.ai };
   } catch (e) {
-    if ((e as Error).name === 'AbortError') return { stato: 'errore', messaggio: 'Tempo scaduto durante il download del database.' };
-    if (e instanceof SyntaxError) return { stato: 'errore', messaggio: 'Il file remoto non è un JSON valido.' };
-    return { stato: 'errore', messaggio: 'Impossibile raggiungere il database remoto.' };
-  } finally {
-    clearTimeout(timer);
-  }
-
-  let parsed;
-  try {
-    parsed = parseDbJson(data);
-  } catch (e) {
+    if (e instanceof NotPublishedError) return { stato: 'errore', messaggio: 'Contenuti non ancora pubblicati.' };
     return { stato: 'errore', messaggio: (e as Error).message };
   }
-  if (!parsed.versione) return { stato: 'errore', messaggio: 'Il file remoto non ha il campo "versione".' };
-
-  const versioneLocale = await getMeta<string | undefined>('versione', undefined);
-  if (versioneLocale && compareVersions(parsed.versione, versioneLocale) <= 0) {
-    return { stato: 'aggiornato', versione: versioneLocale };
-  }
-  const records = parsed.items.flatMap((i) => (i.record ? [i.record] : []));
-  ensureUniqueIds(records);
-  return {
-    stato: 'disponibile',
-    versione: parsed.versione,
-    versioneLocale,
-    records,
-    scartati: parsed.items.length - records.length
-  };
 }
 
-/** Applica l'aggiornamento remoto (dopo conferma dell'utente). */
-export async function applyRemote(versione: string, records: DbRecord[]): Promise<RemotePlan> {
+export interface ApplyResult {
+  plan: RemotePlan;
+  /** Avviso sulle risposte AI (password AI cambiata o AI non più condivisa). */
+  avvisoAi: string | null;
+}
+
+/** Applica l'aggiornamento (dopo conferma dell'utente). Le modifiche locali del programmatore non vengono toccate. */
+export async function applyRemote(versione: string, records: DbRecord[], ai?: Envelope): Promise<ApplyResult> {
   const existing = await db.records.toArray();
   const plan = planRemote(existing, records);
   await putRecords(plan.toPut);
   await deleteRecords(plan.toDelete);
   await setMeta('versione', versione);
   await setMeta('aggiornato_il', new Date().toISOString());
-  return plan;
+  const a = await getAccess();
+  const avvisoAi = a && a.ruolo !== 'demo' ? await refreshAiShare(a, ai) : null;
+  return { plan, avvisoAi };
+}
+
+/** Password soci cambiata: con la nuova password si sblocca e si applica l'aggiornamento. */
+export async function applyWithNewPassword(password: string, file: SociFile): Promise<ApplyResult> {
+  const payload = await reenterSociPassword(password, file);
+  return applyRemote(file.versione, payload.records, payload.ai);
 }

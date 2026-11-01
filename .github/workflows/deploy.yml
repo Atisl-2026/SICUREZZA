@@ -52,11 +52,22 @@ jobs:
 
       - name: Build
         run: npm run build
+        env:
+          VITE_GITHUB_REPO: ${{ github.repository }}
 
-      - name: Controlla il database pubblicato
+      - name: Controlla i dati pubblicati
         run: |
-          test -f dist/data/db.json || { echo "::error::Manca data/db.json: esegui 'npm run build-db' e fai commit del file."; exit 1; }
-          node -e "const d=require('./dist/data/db.json'); if(!d.versione||!Array.isArray(d.records)) throw new Error('db.json non valido'); console.log('db.json: versione', d.versione, '-', d.records.length, 'record')"
+          for f in demo soci; do
+            test -f "dist/data/$f.json" || { echo "::error::Manca data/$f.json"; exit 1; }
+          done
+          node -e "
+            const d = require('./dist/data/demo.json'), s = require('./dist/data/soci.json');
+            if (!d.versione || !Array.isArray(d.records)) throw new Error('demo.json non valido');
+            if (s.formato !== 'consulta-soci-1' || !s.cifrato?.dati) throw new Error('soci.json non valido o non cifrato');
+            console.log('demo.json:', d.records.length, 'schede - soci.json: versione', s.versione, '(cifrato)');
+          "
+          # nessun database in chiaro deve finire online
+          if [ -f dist/data/db.json ]; then echo "::error::dist/data/db.json in chiaro non deve essere pubblicato"; exit 1; fi
 
       - name: Configura GitHub Pages
         if: github.event_name != 'pull_request'

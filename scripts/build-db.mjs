@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 /**
- * build-db.mjs — converte i file sorgente in data/db.json (formato dello schema dell'app).
+ * build-db.mjs — converte i file sorgente in un database in chiaro (formato dello schema dell'app).
  *
  * Uso:
- *   npm run build-db                       # legge ./sorgenti, scrive ./data/db.json
+ *   npm run build-db                       # legge ./sorgenti, scrive ./sorgenti/db-generato.json (in chiaro, NON va su GitHub)
+ *   npm run cifra-db                       # poi: crea data/demo.json e data/soci.json (cifrato) da pubblicare
  *   npm run build-db -- percorso/cartella  # altra cartella sorgente
  *   npm run build-db -- --versione 2025.3  # versione esplicita
  *   npm run build-db -- --forza            # riscrive anche se il contenuto non è cambiato
@@ -20,7 +21,7 @@
  * - id stabile ricavato dal percorso del file (senza estensione e senza eventuale data iniziale).
  * - data_aggiornamento: data all'inizio del nome file (2025-03-12_nome.pdf), altrimenti data di modifica del file.
  * - metadati.csv (facoltativo, nella cartella sorgente) per sovrascrivere i campi:
- *     file;id;titolo;categoria;tag;fonte;data_aggiornamento
+ *     file;id;titolo;categoria;tag;fonte;data_aggiornamento;demo   (demo = sì → visibile nell'accesso demo)
  *     normativa/dlgs-81.pdf;;D.Lgs. 81/2008;;sicurezza|lavoro;https://www.normattiva.it/…;2024-05-01
  */
 import { createHash } from 'node:crypto';
@@ -30,7 +31,7 @@ import { mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import {
-  ensureUniqueIds, fieldForKey, normalizeRecord, normalizeText, parseDate, parseDbJson, parseTags, slugify
+  ensureUniqueIds, fieldForKey, normalizeRecord, normalizeText, parseBool, parseDate, parseDbJson, parseTags, slugify
 } from '../src/shared/normalize.ts';
 import { decodeText, parseCsv, rowsToObjects } from '../src/shared/csv.ts';
 
@@ -47,11 +48,11 @@ const opt = (name) => {
 };
 const flagValues = new Set(['--out', '--versione'].flatMap((f) => (args.includes(f) ? [args[args.indexOf(f) + 1]] : [])));
 const srcDir = path.resolve(args.find((a) => !a.startsWith('--') && !flagValues.has(a)) ?? 'sorgenti');
-const outFile = path.resolve(opt('--out') ?? 'data/db.json');
+const outFile = path.resolve(opt('--out') ?? path.join(srcDir, 'db-generato.json'));
 const forza = args.includes('--forza');
 
 function readFileHeader() {
-  return 'Uso: node scripts/build-db.mjs [cartella-sorgenti] [--out data/db.json] [--versione X] [--forza]';
+  return 'Uso: node scripts/build-db.mjs [cartella-sorgenti] [--out <cartella-sorgenti>/db-generato.json] [--versione X] [--forza]';
 }
 
 // ---------------------------------------------------------------- utilità
@@ -361,7 +362,7 @@ function convertLegacy(file, target) {
 async function processFile(full, metaMap) {
   const rel = path.relative(srcDir, full).split(path.sep).join('/');
   let ext = path.extname(full).toLowerCase();
-  if (rel.toLowerCase() === 'metadati.csv') return [];
+  if (rel.toLowerCase() === 'metadati.csv' || rel.toLowerCase() === 'db-generato.json') return [];
   if (!SUPPORTED.has(ext)) { warn(rel, 'formato non supportato, ignorato'); return []; }
 
   let readPath = full;
@@ -384,7 +385,8 @@ async function processFile(full, metaMap) {
     categoria: meta.categoria || (parts.length > 1 ? prettify(parts[0]) : 'Generale'),
     tag: parseTags([...parts.slice(1, -1).map(prettify), ...parseTags(meta.tag ?? '')]),
     fonte: meta.fonte || rel,
-    data_aggiornamento: parseDate(meta.data_aggiornamento) || (datePrefix ? parseDate(datePrefix[1]) : '') || parseDate(mtime)
+    data_aggiornamento: parseDate(meta.data_aggiornamento) || (datePrefix ? parseDate(datePrefix[1]) : '') || parseDate(mtime),
+    demo: meta.demo != null ? parseBool(meta.demo) : false
   };
   const ctx = { rel, fileId, defaults };
   const fallbackTitle = prettify(cleanName);
@@ -399,6 +401,7 @@ async function processFile(full, metaMap) {
       if (r.categoria === 'Generale' && defaults.categoria !== 'Generale') r.categoria = defaults.categoria;
       if (!r.fonte) r.fonte = defaults.fonte;
       if (!r.data_aggiornamento) r.data_aggiornamento = defaults.data_aggiornamento;
+      if (defaults.demo) r.demo = true;
       return [r];
     });
   }
@@ -441,7 +444,8 @@ async function processFile(full, metaMap) {
         categoria: defaults.categoria,
         tag: defaults.tag,
         fonte: defaults.fonte,
-        data_aggiornamento: defaults.data_aggiornamento
+        data_aggiornamento: defaults.data_aggiornamento,
+        ...(defaults.demo ? { demo: true } : {})
       }));
     }
   }
@@ -458,7 +462,8 @@ function makeRecord(ctx, meta, doc, fallbackTitle, multi) {
     categoria: d.categoria,
     tag: d.tag,
     fonte: d.fonte,
-    data_aggiornamento: d.data_aggiornamento
+    data_aggiornamento: d.data_aggiornamento,
+    ...(d.demo ? { demo: true } : {})
   };
 }
 
@@ -522,7 +527,8 @@ async function main() {
   await mkdir(path.dirname(outFile), { recursive: true });
   await writeFile(outFile, json);
   const kb = (Buffer.byteLength(json) / 1024).toFixed(0);
-  console.log(`\nScritto ${path.relative(process.cwd(), outFile)}: ${clean.length} record, ${kb} KB, versione ${versione}`);
+  console.log(`\nScritto ${path.relative(process.cwd(), outFile)}: ${clean.length} record (${clean.filter((r) => r.demo).length} visibili in demo), ${kb} KB, versione ${versione}`);
+  console.log('Questo file è IN CHIARO: non pubblicarlo. Per creare i file da pubblicare: npm run cifra-db');
 }
 
 if (import.meta.url === `file://${process.argv[1]}` || process.argv[1]?.endsWith('build-db.mjs')) {

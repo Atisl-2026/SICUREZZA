@@ -12,7 +12,8 @@
     "typecheck": "tsc --noEmit",
     "icons": "node scripts/gen-icons.mjs",
     "build-db": "node scripts/build-db.mjs",
-    "check:offline": "node scripts/check-offline.mjs"
+    "check:offline": "node scripts/check-offline.mjs",
+    "cifra-db": "node scripts/cifra-db.mjs"
   },
   "dependencies": {
     "dexie": "^4.4.7",

@@ -11,6 +11,8 @@ export interface DbRecord {
   fonte: string;
   /** Data in formato ISO YYYY-MM-DD (stringa vuota se sconosciuta). */
   data_aggiornamento: string;
+  /** true se la scheda è visibile anche nell'accesso demo (pubblicata in chiaro). */
+  demo?: boolean;
 }
 
 /** Provenienza del record nel database locale. */
@@ -18,7 +20,7 @@ export type Origine = 'remoto' | 'locale';
 
 /** Record salvato in IndexedDB: schema + metadati di sincronizzazione. */
 export interface StoredRecord extends DbRecord {
-  /** 'remoto' = arriva dal db.json su GitHub; 'locale' = creato o importato nell'app. */
+  /** 'remoto' = pubblicato su GitHub; 'locale' = creato o importato nell'app e non ancora pubblicato. */
   origine: Origine;
   /** true se un record remoto è stato modificato nell'app: gli aggiornamenti remoti non lo sovrascrivono. */
   modificato?: boolean;
@@ -35,7 +37,7 @@ export interface Chunk {
   testo: string;
 }
 
-/** Formato del file data/db.json. */
+/** Database in chiaro (demo.json, output di build-db, backup). */
 export interface DbFile {
   versione: string;
   generato?: string;

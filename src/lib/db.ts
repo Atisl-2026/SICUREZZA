@@ -74,6 +74,7 @@ export async function clearAll() {
     await db.chunks.clear();
     await db.meta.delete('versione');
     await db.meta.delete('aggiornato_il');
+    await db.meta.delete('indice'); // l'indice contiene parole dei documenti
     await bumpRevision();
   });
 }

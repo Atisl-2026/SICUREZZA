@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import { DbSection, WebSection, type AiUnavailable } from '../components/Answer';
 import { IconSend } from '../components/Icons';
 import { askDatabase, askWeb, type AiState } from '../lib/ai';
+import { aiAllowed, getAccess, type Accesso } from '../lib/access';
 import { db } from '../lib/db';
 import { addToHistory, clearHistory, removeFromHistory, useHistory } from '../lib/history';
 import { useLiveQuery } from '../lib/live';
@@ -10,6 +11,7 @@ import { getSettings, updateSettings, useSettings } from '../lib/settings';
 
 interface Props {
   online: boolean;
+  access: Accesso;
 }
 
 interface AskState {
@@ -27,7 +29,7 @@ const IDLE: AiState = { status: 'idle' };
 let saved: AskState = { draft: '', asked: '', results: null, dbAi: IDLE, webAi: IDLE, unavailable: null };
 let inflight: AbortController | null = null;
 
-export function AskPage({ online }: Props) {
+export function AskPage({ online, access }: Props) {
   const [draft, setDraft] = useState(saved.draft);
   const [asked, setAsked] = useState(saved.asked);
   const [results, setResults] = useState<LocalResult[] | null>(saved.results);
@@ -72,7 +74,9 @@ export function AskPage({ online }: Props) {
     inflight = ctrl;
     const s = await getSettings();
     const isOnline = navigator.onLine;
-    const why: AiUnavailable = !isOnline ? 'offline' : !s.apiKey.trim() ? 'nokey' : null;
+    const why: AiUnavailable = !aiAllowed(await getAccess())
+      ? 'nonabilitato'
+      : !isOnline ? 'offline' : !s.apiKey.trim() ? 'nokey' : null;
     setUnavailable(why);
 
     const jobs: Promise<void>[] = [];
@@ -130,6 +134,7 @@ export function AskPage({ online }: Props) {
     inputRef.current?.focus();
   };
 
+  const canAi = aiAllowed(access);
   const webOn = settings.webCheck && online;
 
   return (
@@ -158,7 +163,7 @@ export function AskPage({ online }: Props) {
         </button>
       </form>
 
-      <div class="card card-tight">
+      {canAi && <div class="card card-tight">
         <label class="switch">
           <span>
             Verifica anche sul web
@@ -179,7 +184,7 @@ export function AskPage({ online }: Props) {
             onChange={(e) => updateSettings({ webCheck: (e.target as HTMLInputElement).checked })}
           />
         </label>
-      </div>
+      </div>}
 
       {error && <p class="notice notice-error" role="alert">{error}</p>}
 

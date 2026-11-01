@@ -60,12 +60,13 @@ La chiave è gratuita e non richiede carta di credito.
 1. Vai su **[Google AI Studio → API keys](https://aistudio.google.com/app/apikey)** e accedi con un account Google.
 2. Tocca **Create API key** (*Crea chiave API*), accetta i termini se richiesto e scegli/crea un progetto.
 3. **Copia** la chiave (inizia con `AIza…`).
-4. Nell'app apri **Impostazioni → Intelligenza artificiale (Gemini)**, incolla la chiave e tocca **Verifica chiave**.
+4. Entra come **programmatore**, apri **Impostazioni → Intelligenza artificiale (Gemini)**, incolla la chiave e tocca **Verifica chiave**.
    Deve comparire «Chiave valida. Modello disponibile: …».
 
 Dove finisce la chiave:
 
-- resta **solo su quel dispositivo** (nel database locale del browser): va inserita su ogni telefono;
+- resta **solo su quel dispositivo** (nel database locale del browser);
+- ai soci scelti arriva **cifrata con la password AI**: solo chi la conosce può usare le risposte AI;
 - viene inviata **solo a Google**, nell'intestazione della richiesta (`x-goog-api-key`), mai nell'indirizzo;
 - **non è nel codice, non va su GitHub e non è inclusa nei backup**;
 - si cancella con **Rimuovi chiave**.
@@ -82,7 +83,37 @@ se un modello smette di funzionare o esaurisce spesso la quota, scrivine un altr
 
 ## 3. Come si usa
 
-L'app ha tre schede in basso.
+### I tre accessi
+
+Alla prima apertura l'app mostra la schermata di accesso.
+
+| Accesso | Come si entra | Cosa vede e cosa può fare |
+|---|---|---|
+| **Demo** | *Prova la demo*, senza password | solo le schede segnate come **visibili in demo**; ricerca, niente AI |
+| **Socio** | **password soci** | tutto l'archivio, in sola lettura; ricerca. Le risposte AI solo con la **password AI** (*Impostazioni → Risposte AI*) |
+| **Programmatore** | *Accesso programmatore*: **codice di accesso GitHub** + password soci | tutto, più creare, modificare ed eliminare le schede, scegliere cosa è visibile in demo, chiave Gemini |
+
+Come sono protetti i contenuti:
+
+- le schede dei soci sono pubblicate **cifrate** (AES-256, chiave ricavata dalla password con PBKDF2):
+  senza la password soci il file `data/soci.json` è illeggibile, anche per chi lo scarica da GitHub;
+- le schede **demo** sono pubblicate **in chiaro** (`data/demo.json`): chiunque può leggerle;
+- la chiave Gemini condivisa è cifrata a parte con la **password AI**: un socio che non la conosce non può usarla;
+- se la password soci cambia, ogni socio la deve reinserire (l'app la chiede da sola); chi non la conosce
+  continua a vedere solo i contenuti già scaricati, senza aggiornamenti;
+- **Esci** (*Impostazioni → Accesso*) cancella dal telefono contenuti, indice di ricerca, cronologia e chiavi.
+
+La password soci è unica e condivisa: per escludere un socio si cambia la password e la si comunica solo agli altri.
+
+#### Creare il codice di accesso GitHub (programmatore, una volta sola)
+
+1. Apri **[GitHub → Fine-grained token](https://github.com/settings/personal-access-tokens/new)** e accedi.
+2. **Token name**: per esempio `App telefono`; **Expiration**: la durata più lunga disponibile.
+3. **Repository access** → *Only select repositories* → scegli il repository dell'app.
+4. **Permissions** → *Repository permissions* → **Contents**: *Read and write*.
+5. **Generate token**, copia il codice (inizia con `github_pat_`) e incollalo nell'app.
+
+Il codice resta solo sul telefono del programmatore. Alla scadenza se ne crea uno nuovo allo stesso modo.
 
 ### Chiedi
 
@@ -92,8 +123,8 @@ L'app ha tre schede in basso.
 
 | Situazione | Risultato |
 |---|---|
-| **Offline** o senza chiave | i brani trovati come schede, con titolo, fonte e parole evidenziate + avviso «Risposta AI disponibile quando sei online» |
-| **Online con chiave** | sezione **Dal database**: risposta di Gemini basata **solo** sui brani trovati, con i numeri delle fonti cliccabili e l'elenco dei record citati; i brani restano consultabili |
+| Demo, socio senza password AI, **offline** | i brani trovati come schede, con titolo, fonte e parole evidenziate |
+| **Online con AI** (programmatore o socio con password AI) | sezione **Dal database**: risposta di Gemini basata **solo** sui brani trovati, con i numeri delle fonti cliccabili e l'elenco delle schede citate; i brani restano consultabili |
 | Interruttore **Verifica anche sul web** attivo | in più, sezione separata **Dal web**: risposta con la Ricerca Google e link alle fonti |
 
 Le due sezioni non vengono mai mescolate: *Dal database* = i tuoi documenti, *Dal web* = internet.
@@ -103,22 +134,22 @@ supporta, l'interruttore si disattiva da solo.
 
 Le ultime domande restano in **Domande recenti** (solo sul dispositivo; si possono cancellare).
 
-### Database
+### Archivio
 
-Elenco dei record con filtro per testo e categoria; tocca un record per leggerlo, **modificarlo** o **eliminarlo**.
-Da qui si **crea** un nuovo record, si **importa** un file JSON/CSV, si **controllano gli aggiornamenti** e si
-**esporta il backup**.
+Elenco delle schede con filtro per testo e categoria; tocca una scheda per leggerla.
+Il programmatore può anche **creare**, **modificare** ed **eliminare** le schede, scegliere se sono **visibili in demo**,
+**importare** file JSON/CSV ed **esportare il backup**. Le schede modificate sul telefono sono segnate **da pubblicare**.
 
 ### Impostazioni
 
-Installazione, chiave e modello Gemini, URL del database remoto, controllo automatico degli aggiornamenti,
-spazio occupato e archiviazione persistente.
+Accesso ed **Esci**, installazione, risposte AI (password AI per i soci; chiave e modello Gemini per il programmatore),
+controllo automatico degli aggiornamenti, spazio occupato e archiviazione persistente.
 
 ---
 
 ## 4. Aggiornare il database
 
-### Com'è fatto un record
+### Com'è fatta una scheda
 
 | Campo | Contenuto |
 |---|---|
@@ -129,13 +160,14 @@ spazio occupato e archiviazione persistente.
 | `tag` | elenco di parole chiave |
 | `fonte` | riferimento o URL del documento originale |
 | `data_aggiornamento` | data in formato `AAAA-MM-GG` |
+| `demo` | `true` se la scheda è visibile anche nell'accesso demo |
 
-L'app divide i testi lunghi in blocchi di ~800–1200 caratteri (con 150 caratteri di sovrapposizione) collegati al record:
-la ricerca e Gemini lavorano sui blocchi, le schede mostrano sempre titolo e fonte del record.
+L'app divide i testi lunghi in blocchi di ~800–1200 caratteri (con 150 caratteri di sovrapposizione) collegati alla scheda:
+la ricerca e Gemini lavorano sui blocchi, le schede mostrano sempre titolo e fonte.
 
-### Metodo consigliato: dai tuoi file a `data/db.json`, poi pubblicazione
+### Dal computer: dai tuoi file ai file da pubblicare
 
-Sul tuo computer, nella cartella del progetto (serve [Node.js](https://nodejs.org) 22.18 o successivo):
+Sul computer, nella cartella del progetto (serve [Node.js](https://nodejs.org) 22.18 o successivo):
 
 1. Metti i documenti nella cartella **`sorgenti/`**. Le sottocartelle sono le **categorie**; quelle più interne diventano **tag**.
    ```
@@ -144,28 +176,36 @@ Sul tuo computer, nella cartella del progetto (serve [Node.js](https://nodejs.or
      procedure/        ferie.pdf          rifiuti.md
      schede-tecniche/  stampante.html     dispositivi.xlsx
      faq/              faq-helpdesk.xlsx  faq-badge.txt
-     metadati.csv      (facoltativo)
+     metadati.csv      (facoltativo: titoli, tag, fonti, schede demo)
    ```
-   La cartella `sorgenti/` **non viene pubblicata** (è esclusa da git): online va solo il testo estratto in `data/db.json`.
-2. Genera il database:
+   La cartella `sorgenti/` **non va mai su GitHub** (è esclusa da git).
+2. Estrai i testi:
    ```bash
    npm install
    npm run build-db
    ```
-   Lo script mostra un riepilogo per file e gli eventuali avvisi (es. PDF scansionati senza testo).
-3. Pubblica `data/db.json` (vedi sotto). Alla successiva apertura online, l'app chiede
-   **«Aggiornamento del database disponibile» → Aggiorna**.
+   Lo script scrive `sorgenti/db-generato.json` (**in chiaro**, resta sul computer) e mostra un riepilogo per file
+   con gli eventuali avvisi (es. PDF scansionati senza testo).
+3. Prepara i file da pubblicare:
+   ```bash
+   npm run cifra-db
+   ```
+   Chiede la password soci e scrive `data/demo.json` (solo schede demo, in chiaro) e `data/soci.json` (tutto, cifrato).
+   Con la stessa password già pubblicata i soci non devono reinserirla e l'eventuale AI condivisa resta attiva;
+   per cambiarla: `npm run cifra-db -- --nuova-password`.
+4. Pubblica i due file (vedi sotto). Alla successiva apertura online, l'app chiede
+   **«Aggiornamento dei contenuti disponibile» → Aggiorna**.
 
-Per provare lo script con i file di esempio inclusi: `npm run build-db -- sorgenti-esempio`.
+Per provare con i file di esempio inclusi: `npm run build-db -- sorgenti-esempio`, poi `npm run cifra-db -- sorgenti-esempio/db-generato.json`.
 
 **Regole di conversione**
 
 | File | Risultato |
 |---|---|
-| Word `.docx`, PDF con testo, PowerPoint `.pptx`, pagine `.html`, `.txt`, `.md` | un record per file |
-| Excel `.xlsx` o `.csv` con colonne *Titolo/Domanda* e *Testo/Risposta* | un record per riga; le colonne *Tag*, *Categoria*, *Fonte*, *Data*, *Id* vengono riconosciute, le altre finiscono nel testo |
-| Excel `.xlsx` o `.csv` con altre colonne (tabelle, registri) | un record per file, una riga di testo per riga della tabella |
-| File in una cartella o con nome contenente **faq** | un record per domanda (righe che terminano con `?`, anche nel formato `D:`/`R:`) |
+| Word `.docx`, PDF con testo, PowerPoint `.pptx`, pagine `.html`, `.txt`, `.md` | una scheda per file |
+| Excel `.xlsx` o `.csv` con colonne *Titolo/Domanda* e *Testo/Risposta* | una scheda per riga; le colonne *Tag*, *Categoria*, *Fonte*, *Data*, *Id*, *Demo* vengono riconosciute, le altre finiscono nel testo |
+| Excel `.xlsx` o `.csv` con altre colonne (tabelle, registri) | una scheda per file, una riga di testo per riga della tabella |
+| File in una cartella o con nome contenente **faq** | una scheda per domanda (righe che terminano con `?`, anche nel formato `D:`/`R:`) |
 | Vecchi formati `.doc` `.xls` `.ppt` `.rtf` `.odt` | convertiti automaticamente se sul computer c'è LibreOffice, altrimenti vanno salvati nel formato moderno |
 | PDF scansionati (solo immagini) | segnalati: serve prima un OCR (es. «Riconosci testo» di Adobe o del tuo scanner) |
 
@@ -173,50 +213,50 @@ Per provare lo script con i file di esempio inclusi: `npm run build-db -- sorgen
 - **titolo**: primo titolo del documento (Word, HTML, Markdown, PowerPoint) o titolo del PDF; altrimenti il nome del file.
 - **data_aggiornamento**: data all'inizio del nome del file (`2025-03-12_circolare.pdf`), altrimenti data di modifica del file.
 - **fonte**: il percorso del file, a meno che non sia indicata in `metadati.csv`.
-- **versione**: data e ora di generazione. Se i contenuti non cambiano, il file non viene riscritto e l'app non propone aggiornamenti inutili.
 
-**`metadati.csv`** (facoltativo, separatore `;`, tag separati da `|`) per correggere i dati di singoli file:
+**`metadati.csv`** (facoltativo, separatore `;`, tag separati da `|`) per correggere i dati di singoli file
+e scegliere le schede **demo**:
 
 ```
-file;titolo;tag;fonte;data_aggiornamento
-normativa/regolamento.docx;Regolamento veicoli aziendali;veicoli|auto;https://intranet.esempio.it/regolamento;2025-01-10
-procedure/2025-03-12_circolare.pdf;Circolare ferie 2025;ferie;;
+file;titolo;tag;fonte;data_aggiornamento;demo
+normativa/regolamento.docx;Regolamento veicoli aziendali;veicoli|auto;https://intranet.esempio.it/regolamento;2025-01-10;
+faq/faq-helpdesk.xlsx;;;;;sì
 ```
 
-### Pubblicare il nuovo `data/db.json`
+### Pubblicare i file
 
 - **Da terminale**:
   ```bash
-  git add data/db.json
-  git commit -m "Aggiornamento database"
+  git add data/demo.json data/soci.json
+  git commit -m "Aggiornamento contenuti"
   git push
   ```
 - **Dal sito GitHub** (senza terminale): apri il repository → cartella `data` → **Add file → Upload files** →
-  trascina il nuovo `db.json` → **Commit changes**.
+  trascina `demo.json` e `soci.json` → **Commit changes**.
 
 In entrambi i casi GitHub Actions ripubblica il sito in 1–2 minuti; i telefoni ricevono l'aggiornamento alla prima
-apertura online (o con **Database → Controlla aggiornamenti**).
+apertura online (o con **Archivio → Controlla aggiornamenti**).
 
-**Cosa succede ai dati sul telefono**: i record che arrivano da GitHub vengono aggiunti, aggiornati o rimossi come nel
-nuovo file. I record **creati o modificati sul telefono non vengono mai sovrascritti** (l'app indica quanti ne ha conservati).
+> ⚠️ Non pubblicare mai `sorgenti/db-generato.json` né altri file in chiaro: il repository è pubblico e GitHub
+> conserva anche le versioni passate dei file.
 
-### Altri due modi
+**Cosa succede ai dati sul telefono**: le schede pubblicate vengono aggiunte, aggiornate o rimosse come nel nuovo file.
+Sul telefono del programmatore le schede **modificate e non ancora pubblicate non vengono sovrascritte**.
 
-- **Import manuale** (*Database → Importa JSON/CSV*): accetta `db.json`, backup dell'app, un elenco JSON di record o un CSV
-  (separatore `;` o `,`, codifica UTF-8 o quella di Excel, intestazioni come `titolo;testo;categoria;tag;fonte;data_aggiornamento`,
-  anche `domanda;risposta`). Se un record esiste già vince quello con la data di aggiornamento più recente.
-- **Direttamente nell'app** (*Database → Nuovo record*, oppure apri un record → *Modifica* / *Elimina*).
-  Questi record restano solo su quel telefono: esporta un backup per non perderli o per passarli ad altri.
+### Dal telefono (programmatore)
 
-Un database diverso da quello pubblicato con l'app si imposta in *Impostazioni → Database remoto → URL del file db.json*
-(deve essere raggiungibile via HTTPS e consentire richieste da browser, come `raw.githubusercontent.com`).
+Nella scheda **Archivio**: **Nuova scheda**, oppure apri una scheda → **Modifica** / **Elimina**; con l'interruttore
+**Visibile anche nella demo** scegli cosa vede la demo. **Importa JSON/CSV** accetta `db-generato.json`, un backup,
+un elenco JSON di schede o un CSV (separatore `;` o `,`, codifica UTF-8 o quella di Excel, intestazioni come
+`titolo;testo;categoria;tag;fonte;data_aggiornamento;demo`, anche `domanda;risposta`).
 
 ---
 
 ## 5. Pubblicare l'app su GitHub Pages (deploy)
 
 Serve un account GitHub gratuito. Con il piano gratuito **il repository deve essere pubblico**: chiunque potrà leggere
-il codice e `data/db.json`. **Non pubblicare documenti riservati.** (La chiave Gemini non è mai nel repository.)
+il codice, le schede demo e il file cifrato dei soci (illeggibile senza password). La chiave Gemini non è mai nel repository
+in chiaro.
 
 ### Prima pubblicazione
 
@@ -237,7 +277,7 @@ l'app viene pubblicata direttamente su `https://<utente>.github.io/`.
 
 ### Pubblicazioni successive
 
-Ogni `git push` sul ramo `main` (codice o `data/db.json`) ripubblica tutto automaticamente.
+Ogni `git push` sul ramo `main` (codice o file in `data/`) ripubblica tutto automaticamente.
 Se un test fallisce la pubblicazione si ferma e il sito resta alla versione precedente.
 Il workflow si può avviare anche a mano: **Actions → Deploy su GitHub Pages → Run workflow**.
 
@@ -258,9 +298,10 @@ I dati stanno nel browser del telefono (IndexedDB). L'app chiede al sistema l'**
 
 - **iPhone**: Safari cancella i dati salvati dai siti web che non apri per 7 giorni; le app **aggiunte alla schermata Home**
   sono escluse da questa regola. Usa sempre l'icona sulla Home.
-- I record scaricati da GitHub si possono sempre riscaricare. **Quelli creati o modificati sul telefono no**:
-  esporta regolarmente un backup con **Database → Esporta backup** (su iPhone si apre il menu Condividi → *Salva su File*).
-- Per ripristinare: **Database → Importa JSON/CSV** e scegli il file di backup.
+- Le schede pubblicate si possono sempre riscaricare. **Quelle create o modificate sul telefono del programmatore e non
+  ancora pubblicate no**: esporta un backup con **Archivio → Esporta backup** (su iPhone si apre il menu Condividi →
+  *Salva su File*). Il backup è **in chiaro**: conservalo in un posto sicuro e non pubblicarlo.
+- Per ripristinare: **Archivio → Importa JSON/CSV** e scegli il file di backup.
 
 ---
 
@@ -276,8 +317,11 @@ I dati stanno nel browser del telefono (IndexedDB). L'app chiede al sistema l'**
 | «Modello Gemini non trovato» | il nome del modello è cambiato: scegline uno disponibile in AI Studio |
 | «L'API Gemini non è disponibile nel paese» | Google non offre l'API nella tua zona: l'app funziona solo con la ricerca locale |
 | La verifica sul web si è disattivata | quota esaurita o modello senza Ricerca Google: riattivala più tardi o cambia modello |
-| Il database non si aggiorna | *Database → Controlla aggiornamenti*; verifica che il workflow su GitHub sia verde e che la `versione` nel nuovo `db.json` sia cambiata |
-| Il workflow fallisce su «Manca data/db.json» | esegui `npm run build-db` e fai commit di `data/db.json` |
+| I contenuti non si aggiornano | *Archivio → Controlla aggiornamenti*; verifica che il workflow su GitHub sia verde |
+| «La password dei soci è cambiata» | chiedi la nuova password al programmatore e inseriscila nel riquadro |
+| «Password non corretta» all'accesso | controlla maiuscole/minuscole; la password soci è unica per tutti i soci |
+| «Codice di accesso GitHub non valido o scaduto» | crea un nuovo codice (sezione 3) |
+| Il workflow fallisce su «Manca data/demo.json» o «soci.json» | esegui `npm run cifra-db` e pubblica i due file |
 | La pagina su GitHub dà 404 | controlla *Settings → Pages → Source: GitHub Actions* e che il workflow sia terminato |
 
 ---
@@ -299,7 +343,8 @@ npm run typecheck      # controllo dei tipi
 npm run build          # build di produzione in dist/
 npm run preview        # anteprima della build con service worker attivo
 npm run check:offline  # verifica end-to-end del funzionamento offline (dopo la build; usa Playwright)
-npm run build-db       # sorgenti/ → data/db.json
+npm run build-db       # sorgenti/ → sorgenti/db-generato.json (in chiaro, resta sul computer)
+npm run cifra-db       # db-generato.json → data/demo.json + data/soci.json (cifrato)
 npm run icons          # rigenera le icone PNG da public/icons/icon.svg (usa Playwright)
 ```
 
@@ -313,7 +358,10 @@ Per provare la build con lo stesso percorso di GitHub Pages: `BASE_PATH=/consult
 ```
 src/
   shared/        logica pura, condivisa da app, script Node e test
-    types.ts       schema dei record
+    types.ts       schema delle schede
+    crypto.ts      cifratura con password (PBKDF2 + AES-GCM, Web Crypto)
+    publish.ts     formato di demo.json e soci.json
+    github.ts      API di GitHub (codice di accesso del programmatore)
     normalize.ts   normalizzazione record, date, tag, versioni
     csv.ts         parser CSV e decodifica UTF-8 / Windows-1252
     chunk.ts       suddivisione in blocchi con sovrapposizione
@@ -324,10 +372,11 @@ src/
   lib/           database Dexie, indice persistente, AI, impostazioni, aggiornamento remoto
   components/    componenti dell'interfaccia
   pages/         Chiedi, Database (elenco, dettaglio, modifica), Impostazioni
-scripts/         build-db.mjs, gen-icons.mjs, check-offline.mjs
-data/db.json     database pubblicato con l'app (non messo in cache dal service worker)
+scripts/         build-db.mjs, cifra-db.mjs, gen-icons.mjs, check-offline.mjs
+data/demo.json   schede demo, in chiaro
+data/soci.json   tutte le schede, cifrate (i file di data/ non sono nel precache del service worker)
 sorgenti-esempio/  file di esempio in tutti i formati supportati
-tests/           test di ricerca, Gemini, database, import, build-db
+tests/           test di ricerca, Gemini, accessi e cifratura, database, import, build-db
 .github/workflows/deploy.yml   test + build + pubblicazione su GitHub Pages
 ```
 

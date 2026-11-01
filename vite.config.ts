@@ -8,24 +8,28 @@ import pkg from './package.json' with { type: 'json' };
 const base = process.env.BASE_PATH || '/';
 
 /**
- * Pubblica data/db.json all'indirizzo <base>data/db.json:
- * servito dal dev server e copiato in dist/ alla build (fuori dal precache del service worker).
+ * Pubblica i file di data/ (demo.json in chiaro, soci.json cifrato) all'indirizzo <base>data/…:
+ * serviti dal dev server e copiati in dist/ alla build (fuori dal precache del service worker).
  */
-function databaseFile(): Plugin {
-  const file = new URL('./data/db.json', import.meta.url);
+const DATA_FILES = ['demo.json', 'soci.json'];
+function dataFiles(): Plugin {
+  const fileUrl = (name: string) => new URL(`./data/${name}`, import.meta.url);
   return {
-    name: 'consulta-database',
+    name: 'consulta-data',
     configureServer(server) {
       server.middlewares.use((req, res, next) => {
-        if (req.url?.split('?')[0] !== `${base}data/db.json` || !existsSync(file)) return next();
+        const name = DATA_FILES.find((n) => req.url?.split('?')[0] === `${base}data/${n}`);
+        if (!name || !existsSync(fileUrl(name))) return next();
         res.setHeader('Content-Type', 'application/json; charset=utf-8');
         res.setHeader('Cache-Control', 'no-store');
-        res.end(readFileSync(file));
+        res.end(readFileSync(fileUrl(name)));
       });
     },
     generateBundle() {
-      if (existsSync(file)) this.emitFile({ type: 'asset', fileName: 'data/db.json', source: readFileSync(file) });
-      else this.warn('data/db.json non trovato: esegui "npm run build-db" per generarlo.');
+      for (const name of DATA_FILES) {
+        if (existsSync(fileUrl(name))) this.emitFile({ type: 'asset', fileName: `data/${name}`, source: readFileSync(fileUrl(name)) });
+        else this.warn(`data/${name} non trovato: l'app non avrà contenuti per questo accesso.`);
+      }
     }
   };
 }
@@ -37,7 +41,7 @@ export default defineConfig({
   },
   plugins: [
     preact(),
-    databaseFile(),
+    dataFiles(),
     VitePWA({
       registerType: 'prompt',
       injectRegister: false,
@@ -67,8 +71,8 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,svg,png,ico,webmanifest,woff2}'],
         navigateFallback: 'index.html',
         cleanupOutdatedCaches: true,
-        // Il db.json remoto NON va in precache: lo gestisce l'app (versione + conferma).
-        globIgnores: ['**/db.json'],
+        // I file dei dati NON vanno in precache: li gestisce l'app (versione + conferma).
+        globIgnores: ['**/data/*.json'],
         runtimeCaching: []
       },
       devOptions: { enabled: false }

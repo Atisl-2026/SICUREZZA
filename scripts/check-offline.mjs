@@ -51,6 +51,11 @@ try {
     .catch(() => page.reload().then(() => page.waitForFunction(() => !!navigator.serviceWorker.controller)));
   ok('service worker attivo e in controllo della pagina');
 
+  // primo accesso (serve la rete): modalità demo
+  await page.getByRole('button', { name: 'Prova la demo' }).click();
+  await page.waitForSelector('.tabbar');
+  ok('accesso demo con i contenuti pubblicati');
+
   await context.setOffline(true);
   await page.reload();
   await page.waitForSelector('.tabbar');
@@ -58,12 +63,12 @@ try {
   if ((await page.textContent('.badge')).trim() !== 'Offline') fail('indicatore non mostra Offline');
   ok('indicatore Offline visibile');
 
-  for (const tab of ['Database', 'Impostazioni', 'Chiedi']) {
+  for (const tab of ['Archivio', 'Impostazioni', 'Chiedi']) {
     await page.getByRole('button', { name: tab, exact: true }).click();
     await page.waitForTimeout(100);
   }
   await page.goto(url + '#database');
-  await page.waitForSelector('text=Versione database');
+  await page.waitForSelector('text=Versione contenuti');
   ok('navigazione tra le schede e deep link offline funzionanti');
 
   await context.setOffline(false);

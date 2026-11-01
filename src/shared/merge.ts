@@ -50,7 +50,7 @@ export interface RemotePlan {
 }
 
 /**
- * Aggiornamento dal db.json remoto:
+ * Aggiornamento dai contenuti pubblicati (demo.json / soci.json):
  * - i record 'remoto' non modificati vengono aggiunti/aggiornati/rimossi come nel file remoto;
  * - i record creati nell'app ('locale') o modificati nell'app non vengono mai toccati.
  */

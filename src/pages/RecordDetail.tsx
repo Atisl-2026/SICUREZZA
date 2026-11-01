@@ -7,7 +7,7 @@ export function isUrl(s: string) {
   return /^https?:\/\//i.test(s.trim());
 }
 
-export function RecordDetail({ id }: { id: string }) {
+export function RecordDetail({ id, isAdmin }: { id: string; isAdmin: boolean }) {
   const data = useLiveQuery(async () => ({
     record: await db.records.get(id),
     blocchi: await db.chunks.where('recordId').equals(id).count()
@@ -26,7 +26,7 @@ export function RecordDetail({ id }: { id: string }) {
 
   const onDelete = async () => {
     const warn = r.origine === 'remoto'
-      ? '\n\nNota: è un record del database remoto e tornerà al prossimo aggiornamento.'
+      ? '\n\nLa scheda sparirà per tutti alla prossima pubblicazione.'
       : '';
     if (!confirm(`Eliminare «${r.titolo}»?${warn}`)) return;
     await deleteRecords([r.id]);
@@ -38,25 +38,29 @@ export function RecordDetail({ id }: { id: string }) {
       <a class="back" href="#database">‹ Database</a>
       <h2 class="record-title">{r.titolo}</h2>
       <dl class="kv small card">
-        <dt>Id</dt><dd><code>{r.id}</code></dd>
+        {isAdmin && <><dt>Id</dt><dd><code>{r.id}</code></dd></>}
         <dt>Categoria</dt><dd>{r.categoria}</dd>
         <dt>Aggiornato</dt><dd>{formatDate(r.data_aggiornamento)}</dd>
         <dt>Fonte</dt>
         <dd class="break">
           {r.fonte ? (isUrl(r.fonte) ? <a href={r.fonte} target="_blank" rel="noopener noreferrer">{r.fonte}</a> : r.fonte) : '—'}
         </dd>
-        <dt>Provenienza</dt>
-        <dd>{r.origine === 'remoto' ? (r.modificato ? 'Remoto, modificato da te' : 'Database remoto') : 'Creato/importato sul dispositivo'}</dd>
-        <dt>Blocchi</dt><dd>{data.blocchi}</dd>
+        {isAdmin && <>
+          <dt>Visibile in demo</dt><dd>{r.demo ? 'Sì' : 'No'}</dd>
+          <dt>Stato</dt>
+          <dd>{r.origine === 'remoto' && !r.modificato ? 'Pubblicata' : 'Da pubblicare'}</dd>
+        </>}
       </dl>
       {r.tag.length > 0 && (
         <p class="chips">{r.tag.map((t) => <span class="chip" key={t}>{t}</span>)}</p>
       )}
       <div class="card record-text">{r.testo}</div>
-      <div class="btn-row">
-        <a class="btn btn-primary" href={`#database/modifica/${encodeURIComponent(r.id)}`}>Modifica</a>
-        <button class="btn btn-danger" onClick={onDelete}>Elimina</button>
-      </div>
+      {isAdmin && (
+        <div class="btn-row">
+          <a class="btn btn-primary" href={`#database/modifica/${encodeURIComponent(r.id)}`}>Modifica</a>
+          <button class="btn btn-danger" onClick={onDelete}>Elimina</button>
+        </div>
+      )}
     </article>
   );
 }

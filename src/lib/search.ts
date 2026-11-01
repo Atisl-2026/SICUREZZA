@@ -37,8 +37,14 @@ export async function getIndex(): Promise<MiniSearch<SearchDoc>> {
     if (!index) {
       const [chunks, records] = await Promise.all([db.chunks.toArray(), db.records.toArray()]);
       index = buildIndex(toSearchDocs(chunks, new Map(records.map((r) => [r.id, r]))));
-      // salvataggio in background: non blocca la prima ricerca
-      setMeta('indice', { formato: INDEX_FORMAT, revisione, json: JSON.stringify(index) } satisfies SavedIndex).catch(() => {});
+      // salvataggio in background: non blocca la prima ricerca.
+      // Si salva solo se nel frattempo i dati non sono cambiati (es. uscita dall'accesso: niente indice residuo).
+      const json = JSON.stringify(index);
+      db.transaction('rw', db.meta, async () => {
+        if ((await getMeta<number>('revisione', 0)) === revisione) {
+          await setMeta('indice', { formato: INDEX_FORMAT, revisione, json } satisfies SavedIndex);
+        }
+      }).catch(() => {});
     }
     current = { revisione, index };
     return index;

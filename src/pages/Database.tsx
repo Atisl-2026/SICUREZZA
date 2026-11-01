@@ -12,20 +12,22 @@ import { RecordForm } from './RecordForm';
 
 interface Props {
   online: boolean;
+  /** Solo il programmatore può creare, modificare, importare ed eliminare. */
+  isAdmin: boolean;
 }
 
-export function DatabasePage({ online }: Props) {
+export function DatabasePage({ online, isAdmin }: Props) {
   const route = useRoute();
   const [, sub, id] = route;
-  if (sub === 'record' && id) return <RecordDetail id={id} />;
-  if (sub === 'nuovo') return <RecordForm />;
-  if (sub === 'modifica' && id) return <RecordForm id={id} />;
-  return <DatabaseHome online={online} />;
+  if (sub === 'record' && id) return <RecordDetail id={id} isAdmin={isAdmin} />;
+  if (isAdmin && sub === 'nuovo') return <RecordForm />;
+  if (isAdmin && sub === 'modifica' && id) return <RecordForm id={id} />;
+  return <DatabaseHome online={online} isAdmin={isAdmin} />;
 }
 
 const PAGE = 50;
 
-function DatabaseHome({ online }: Props) {
+function DatabaseHome({ online, isAdmin }: Props) {
   const [filtro, setFiltro] = useState('');
   const [categoria, setCategoria] = useState('');
   const [limite, setLimite] = useState(PAGE);
@@ -36,7 +38,8 @@ function DatabaseHome({ online }: Props) {
 
   const info = useLiveQuery(async () => ({
     records: await db.records.count(),
-    chunks: await db.chunks.count(),
+    demo: await db.records.filter((r) => !!r.demo).count(),
+    daPubblicare: await db.records.filter((r) => r.origine === 'locale' || !!r.modificato).count(),
     versione: await getMeta<string | undefined>('versione', undefined),
     aggiornato: await getMeta<string | undefined>('aggiornato_il', undefined),
     categorie: (await db.records.orderBy('categoria').uniqueKeys()) as string[]
@@ -86,20 +89,30 @@ function DatabaseHome({ online }: Props) {
     <section>
       <div class="card">
         <dl class="kv small">
-          <dt>Record</dt>
+          <dt>Schede</dt>
           <dd>{info?.records ?? '…'}</dd>
-          <dt>Blocchi indicizzabili</dt>
-          <dd>{info?.chunks ?? '…'}</dd>
-          <dt>Versione database</dt>
+          {isAdmin && <><dt>Visibili in demo</dt><dd>{info?.demo ?? '…'}</dd></>}
+          {isAdmin && <><dt>Da pubblicare</dt><dd>{info?.daPubblicare ?? '…'}</dd></>}
+          <dt>Versione contenuti</dt>
           <dd>{info?.versione ?? '—'}</dd>
-          <dt>Ultimo aggiornamento remoto</dt>
+          <dt>Ultimo aggiornamento</dt>
           <dd>{info?.aggiornato ? formatDate(info.aggiornato) : '—'}</dd>
         </dl>
       </div>
 
-      <div class="card">
+      {!isAdmin && (
+        <button
+          class="btn btn-block check-btn"
+          disabled={!online}
+          onClick={() => window.dispatchEvent(new Event(REMOTE_CHECK_EVENT))}
+        >
+          Controlla aggiornamenti
+        </button>
+      )}
+
+      {isAdmin && <div class="card">
         <div class="actions-grid">
-          <a class="btn btn-primary" href="#database/nuovo">＋ Nuovo record</a>
+          <a class="btn btn-primary" href="#database/nuovo">＋ Nuova scheda</a>
           <button class="btn" disabled={busy} onClick={() => fileInput.current?.click()}>
             {busy ? 'Importazione…' : 'Importa JSON/CSV'}
           </button>
@@ -116,12 +129,12 @@ function DatabaseHome({ online }: Props) {
         <input ref={fileInput} type="file" accept=".json,.csv,.tsv,application/json,text/csv" hidden onChange={onImport} />
         {errore && <p class="notice notice-error" role="alert">{errore}</p>}
         {esito && <ImportReport r={esito} onClose={() => setEsito(null)} />}
-      </div>
+      </div>}
 
       <div class="filters">
         <input
           type="search"
-          placeholder="Filtra per titolo, id o tag"
+          placeholder="Filtra per titolo o tag"
           value={filtro}
           onInput={(e) => { setFiltro((e.target as HTMLInputElement).value); setLimite(PAGE); }}
           aria-label="Filtra record"
@@ -138,7 +151,7 @@ function DatabaseHome({ online }: Props) {
 
       {records && records.length === 0 && (
         <p class="muted center">
-          {info?.records ? 'Nessun record corrisponde al filtro.' : 'Il database è vuoto: importa un file o controlla gli aggiornamenti.'}
+          {info?.records ? 'Nessuna scheda corrisponde al filtro.' : 'Non ci sono ancora contenuti: controlla gli aggiornamenti.'}
         </p>
       )}
 
@@ -151,8 +164,8 @@ function DatabaseHome({ online }: Props) {
                   <span class="rl-title">{r.titolo}</span>
                   <span class="rl-meta">
                     {r.categoria} · {formatDate(r.data_aggiornamento)}
-                    {r.origine === 'locale' && <span class="chip">locale</span>}
-                    {r.modificato && <span class="chip">modificato</span>}
+                    {isAdmin && r.demo && <span class="chip chip-demo">demo</span>}
+                    {isAdmin && (r.origine === 'locale' || r.modificato) && <span class="chip chip-pending">da pubblicare</span>}
                   </span>
                 </a>
               </li>
@@ -166,11 +179,11 @@ function DatabaseHome({ online }: Props) {
         </div>
       )}
 
-      <details class="card danger-zone">
+      {isAdmin && <details class="card danger-zone">
         <summary>Zona pericolosa</summary>
         <p class="small muted">Elimina tutti i dati dal dispositivo. I record remoti si possono riscaricare; quelli creati da te no.</p>
         <button class="btn btn-danger btn-block" onClick={onClear} disabled={!info?.records}>Elimina tutti i record</button>
-      </details>
+      </details>}
     </section>
   );
 }

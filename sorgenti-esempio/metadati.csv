@@ -1,4 +1,6 @@
-file;titolo;tag;fonte
-normativa/regolamento-veicoli-aziendali.docx;;veicoli|auto aziendali|regolamento;Regolamento interno rev. 3 (esempio)
-procedure/2026-09-15_richiesta-ferie.pdf;Richiesta di ferie e permessi;ferie|permessi|personale;
-schede-tecniche/stampante-multifunzione-mf200.html;;stampante|toner;https://intranet.esempio.local/schede/mf200
+file;titolo;tag;fonte;demo
+normativa/regolamento-veicoli-aziendali.docx;;veicoli|auto aziendali|regolamento;Regolamento interno rev. 3 (esempio);
+procedure/2026-09-15_richiesta-ferie.pdf;Richiesta di ferie e permessi;ferie|permessi|personale;;
+procedure/gestione-rifiuti-ufficio.md;;;;sì
+schede-tecniche/stampante-multifunzione-mf200.html;;stampante|toner;https://intranet.esempio.local/schede/mf200;sì
+faq/faq-helpdesk.xlsx;;;;sì
