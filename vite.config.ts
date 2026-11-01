@@ -4,6 +4,11 @@ import preact from '@preact/preset-vite';
 import { VitePWA } from 'vite-plugin-pwa';
 import pkg from './package.json' with { type: 'json' };
 
+// Il lettore PDF ha nomi fissi (per versione della libreria): una versione dell'app già installata
+// lo trova anche dopo che il sito è stato aggiornato (con i nomi «-[hash]» spariva a ogni pubblicazione).
+const UNPDF_VERSION = (JSON.parse(readFileSync(new URL('./node_modules/unpdf/package.json', import.meta.url), 'utf8')) as { version: string }).version;
+const PDF_DIR = `assets/pdf-${UNPDF_VERSION}`;
+
 // Su GitHub Pages l'app vive in /<nome-repo>/: il workflow imposta BASE_PATH.
 const base = process.env.BASE_PATH || '/';
 
@@ -76,10 +81,10 @@ export default defineConfig({
         // I file dei dati NON vanno in precache: li gestisce l'app (versione + conferma).
         // il lettore PDF (~1,7 MB) serve solo al programmatore: fuori dall'installazione,
         // messo in cache al primo uso
-        globIgnores: ['**/data/*.json', '**/assets/pdf/**', '**/download/**'],
+        globIgnores: ['**/data/*.json', '**/assets/pdf-*/**', '**/download/**'],
         runtimeCaching: [
           {
-            urlPattern: ({ url }) => url.pathname.includes('/assets/pdf/'),
+            urlPattern: ({ url }) => url.pathname.includes('/assets/pdf-'),
             handler: 'CacheFirst',
             options: { cacheName: 'lettore-pdf', expiration: { maxEntries: 20 } }
           }
@@ -92,8 +97,13 @@ export default defineConfig({
     target: 'es2020',
     rollupOptions: {
       output: {
-        chunkFileNames: (chunk: { moduleIds: string[] }) =>
-          chunk.moduleIds.some((id: string) => id.includes('/node_modules/unpdf/')) ? 'assets/pdf/[name]-[hash].js' : 'assets/[name]-[hash].js'
+        // l'aiutante di Vite per i caricamenti differiti in un file a parte con nome fisso: così il lettore
+        // PDF non dipende dal file principale dell'app (che cambia nome a ogni versione)
+        manualChunks: (id: string) => (id.includes('vite/preload-helper') ? 'preload-helper' : undefined),
+        chunkFileNames: (chunk: { name: string; moduleIds: string[] }) =>
+          chunk.name === 'preload-helper'
+            ? 'assets/preload-helper.js'
+            : chunk.moduleIds.some((id: string) => id.includes('/node_modules/unpdf/')) ? `${PDF_DIR}/[name].js` : 'assets/[name]-[hash].js'
       }
     }
   },

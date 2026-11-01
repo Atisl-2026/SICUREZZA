@@ -526,6 +526,7 @@ I dati stanno nel browser del telefono (IndexedDB). L'app chiede al sistema l'**
 | L'app non si apre offline | aprila almeno una volta online e attendi il messaggio «App pronta: ora funziona anche offline» |
 | Non compare «Installa app» su Android | usa Chrome (non la navigazione in incognito) e ricarica la pagina; oppure menu ⋮ → *Aggiungi a schermata Home* |
 | Su iPhone manca «Aggiungi alla schermata Home» | apri il link in Safari (non dentro WhatsApp, Mail ecc.: usa «Apri in Safari») |
+| «Il lettore PDF … non è più sul sito» / «non è disponibile» | l'app aperta era di una versione precedente: tocca **Aggiorna** nel riquadro in alto (o chiudi e riapri l'app) e ricarica il file. Offline, il lettore PDF serve la connessione la prima volta |
 | «Quota gratuita di Gemini esaurita» | attendi (i limiti si azzerano ogni minuto o ogni giorno) o prova un modello più leggero; la ricerca locale funziona comunque |
 | «La chiave API Gemini non è valida» | ricopia la chiave da AI Studio senza spazi e tocca *Verifica chiave* |
 | «Modello Gemini non trovato» | l'app sceglie da sola un modello disponibile; se l'errore resta, *Impostazioni → Mostra i modelli disponibili* e toccane uno |

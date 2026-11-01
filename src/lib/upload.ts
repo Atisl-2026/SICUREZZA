@@ -34,7 +34,10 @@ async function readPdf(bytes: Uint8Array, warn: (m: string) => void): Promise<Do
   try {
     unpdf = await import('unpdf'); // caricato solo quando serve (~1,7 MB)
   } catch {
-    throw new Error('il lettore PDF non è disponibile: serve la connessione la prima volta');
+    if (!navigator.onLine) throw new Error('il lettore PDF non è disponibile: serve la connessione la prima volta');
+    // online: quasi sempre è una versione vecchia dell'app ancora aperta mentre il sito è stato aggiornato
+    try { await (await navigator.serviceWorker?.getRegistration())?.update(); } catch { /* niente */ }
+    throw new Error('il lettore PDF di questa versione dell\'app non è più sul sito perché nel frattempo è uscita una versione nuova. Tocca «Aggiorna» nel riquadro in alto (oppure chiudi del tutto l\'app e riaprila) e carica di nuovo il file.');
   }
   try {
     return await readPdfWith(unpdf as never, bytes, warn);
