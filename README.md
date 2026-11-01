@@ -85,3 +85,32 @@ La ricerca usa [MiniSearch](https://github.com/lucaong/minisearch) direttamente 
 
 L'indice viene salvato sul dispositivo e ricostruito solo quando i dati cambiano.
 Le ultime 20 domande restano nella cronologia locale (cancellabile).
+
+## Risposte AI con Gemini
+
+Con connessione e chiave API, dopo la ricerca locale l'app chiama Gemini (API REST `generateContent`,
+direttamente dal browser, nessun server):
+
+1. **Dal database**: i blocchi trovati vengono inviati come contesto con l'istruzione di rispondere in italiano
+   *solo* sulla base di quei blocchi, dire chiaramente se l'informazione manca, citare gli id dei record e non inventare.
+   Le citazioni `[id]` diventano numeri cliccabili che aprono il record; sotto c'è l'elenco dei record citati.
+2. **Dal web** (interruttore *Verifica anche sul web*): seconda chiamata con lo strumento `google_search`;
+   la risposta compare in una sezione separata con i link alle fonti (`groundingMetadata`) e i suggerimenti di ricerca Google.
+   Le due sezioni non vengono mai mescolate.
+
+Offline o senza chiave si vedono solo i blocchi locali. Se Gemini risponde con un errore l'app lo spiega in una riga
+e mostra comunque i risultati locali:
+
+| Errore | Comportamento |
+|---|---|
+| 429 quota esaurita | messaggio + risultati locali; per il web l'interruttore viene disattivato |
+| chiave non valida / 403 | invito a controllare la chiave nelle Impostazioni |
+| modello inesistente / ricerca Google non supportata | messaggio; per il web l'interruttore viene disattivato |
+| timeout (40 s, 60 s per il web), rete assente, 500/503 | messaggio + pulsante *Riprova* |
+
+La chiave si inserisce in **Impostazioni** (link guidato a Google AI Studio), è salvata solo nel dispositivo
+(IndexedDB), viene inviata solo a Google nell'intestazione `x-goog-api-key` e non compare mai nel codice,
+nel repository o nei backup. Anche il nome del modello è configurabile (predefinito `gemini-2.5-flash`).
+
+> ⚠️ Sul piano gratuito Google può usare i contenuti inviati per migliorare i propri servizi:
+> non inserire dati personali o riservati.

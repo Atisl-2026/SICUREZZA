@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
+import { DbSection, WebSection, type AiUnavailable } from '../components/Answer';
 import { IconSend } from '../components/Icons';
-import { ResultCard } from '../components/ResultCard';
+import { askDatabase, askWeb, type AiState } from '../lib/ai';
 import { db } from '../lib/db';
 import { addToHistory, clearHistory, removeFromHistory, useHistory } from '../lib/history';
 import { useLiveQuery } from '../lib/live';
 import { searchLocal, type LocalResult } from '../lib/search';
-import { updateSettings, useSettings } from '../lib/settings';
+import { getSettings, updateSettings, useSettings } from '../lib/settings';
 
 interface Props {
   online: boolean;
@@ -15,15 +16,24 @@ interface AskState {
   draft: string;
   asked: string;
   results: LocalResult[] | null;
+  dbAi: AiState;
+  webAi: AiState;
+  unavailable: AiUnavailable;
 }
 
+const IDLE: AiState = { status: 'idle' };
+
 // Lo stato sopravvive al cambio di scheda (il componente viene smontato).
-let saved: AskState = { draft: '', asked: '', results: null };
+let saved: AskState = { draft: '', asked: '', results: null, dbAi: IDLE, webAi: IDLE, unavailable: null };
+let inflight: AbortController | null = null;
 
 export function AskPage({ online }: Props) {
   const [draft, setDraft] = useState(saved.draft);
   const [asked, setAsked] = useState(saved.asked);
   const [results, setResults] = useState<LocalResult[] | null>(saved.results);
+  const [dbAi, setDbAi] = useState<AiState>(saved.dbAi);
+  const [webAi, setWebAi] = useState<AiState>(saved.webAi);
+  const [unavailable, setUnavailable] = useState<AiUnavailable>(saved.unavailable);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const settings = useSettings();
@@ -31,10 +41,16 @@ export function AskPage({ online }: Props) {
   const recordCount = useLiveQuery(() => db.records.count());
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
+  const mounted = useRef(true);
 
   useEffect(() => {
-    saved = { draft, asked, results };
-  }, [draft, asked, results]);
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
+
+  useEffect(() => {
+    saved = { draft, asked, results, dbAi, webAi, unavailable };
+  }, [draft, asked, results, dbAi, webAi, unavailable]);
 
   // il campo cresce con il testo (fino al massimo definito nel CSS)
   useEffect(() => {
@@ -44,12 +60,51 @@ export function AskPage({ online }: Props) {
     el.style.height = `${el.scrollHeight + 4}px`;
   }, [draft]);
 
+  /** Aggiorna lo stato anche se nel frattempo l'utente ha cambiato scheda. */
+  const setAi = (which: 'db' | 'web', v: AiState) => {
+    saved = { ...saved, [which === 'db' ? 'dbAi' : 'webAi']: v };
+    if (mounted.current) (which === 'db' ? setDbAi : setWebAi)(v);
+  };
+
+  const runAi = async (question: string, res: LocalResult[], only?: 'db' | 'web') => {
+    inflight?.abort();
+    const ctrl = new AbortController();
+    inflight = ctrl;
+    const s = await getSettings();
+    const isOnline = navigator.onLine;
+    const why: AiUnavailable = !isOnline ? 'offline' : !s.apiKey.trim() ? 'nokey' : null;
+    setUnavailable(why);
+
+    const jobs: Promise<void>[] = [];
+    if (only !== 'web') {
+      if (!why && res.length) {
+        setAi('db', { status: 'loading' });
+        jobs.push(askDatabase(question, res, s, ctrl.signal).then((v) => { if (!ctrl.signal.aborted) setAi('db', v); }));
+      } else setAi('db', IDLE);
+    }
+    if (only !== 'db') {
+      if (!why && s.webCheck) {
+        setAi('web', { status: 'loading' });
+        jobs.push(askWeb(question, s, ctrl.signal).then((v) => {
+          if (ctrl.signal.aborted) return;
+          setAi('web', v);
+          if (v.status === 'error' && v.disabledWeb) updateSettings({ webCheck: false });
+        }));
+      } else setAi('web', IDLE);
+    }
+    await Promise.all(jobs);
+    if (inflight === ctrl) inflight = null;
+  };
+
   const ask = async (q: string) => {
     const question = q.trim();
     if (!question || busy) return;
     setDraft(question);
     setBusy(true);
     setError('');
+    inflight?.abort(); // la domanda precedente non serve più
+    setAi('db', IDLE);
+    setAi('web', IDLE);
     inputRef.current?.blur(); // chiude la tastiera su mobile
     try {
       const res = await searchLocal(question);
@@ -57,6 +112,7 @@ export function AskPage({ online }: Props) {
       setResults(res);
       addToHistory(question);
       requestAnimationFrame(() => resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+      runAi(question, res);
     } catch (e) {
       setError(`Errore durante la ricerca: ${(e as Error).message}`);
     } finally {
@@ -65,9 +121,12 @@ export function AskPage({ online }: Props) {
   };
 
   const reset = () => {
+    inflight?.abort();
     setDraft('');
     setAsked('');
     setResults(null);
+    setDbAi(IDLE);
+    setWebAi(IDLE);
     inputRef.current?.focus();
   };
 
@@ -105,7 +164,11 @@ export function AskPage({ online }: Props) {
             Verifica anche sul web
             <br />
             <span class="muted small">
-              {online ? 'Seconda ricerca con Google tramite Gemini' : 'Disponibile quando sei online'}
+              {!online
+                ? 'Disponibile quando sei online'
+                : !settings.apiKey
+                  ? 'Richiede la chiave Gemini (Impostazioni)'
+                  : 'Seconda ricerca con Google tramite Gemini'}
             </span>
           </span>
           <input
@@ -126,24 +189,14 @@ export function AskPage({ online }: Props) {
             <p class="asked">«{asked}»</p>
             <button type="button" class="link-btn" onClick={reset}>Nuova domanda</button>
           </div>
-
-          <p class="ai-hint" role="note">
-            {online ? 'Risposta AI: in arrivo nella prossima versione (chiave Gemini nelle Impostazioni).' : 'Risposta AI disponibile quando sei online.'}
-          </p>
-
-          <h3 class="section-title">
-            Dal database <span class="muted small">· {results.length} {results.length === 1 ? 'blocco' : 'blocchi'}</span>
-          </h3>
-          {results.length === 0 && (
-            <div class="card">
-              {recordCount === 0 ? (
-                <p>Il database è vuoto. <a href="#database">Importa dei contenuti</a> o controlla gli aggiornamenti.</p>
-              ) : (
-                <p class="muted">Nessun contenuto trovato per questa domanda. Prova con parole diverse o più generiche.</p>
-              )}
-            </div>
-          )}
-          {results.map((r, i) => <ResultCard key={r.chunkId} r={r} index={i} />)}
+          <DbSection
+            results={results}
+            ai={dbAi}
+            unavailable={unavailable}
+            recordCount={recordCount}
+            onRetry={() => runAi(asked, results, 'db')}
+          />
+          <WebSection ai={webAi} />
         </div>
       )}
 

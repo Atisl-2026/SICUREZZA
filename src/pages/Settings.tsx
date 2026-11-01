@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'preact/hooks';
 import { InstallCard } from '../components/InstallCard';
+import { GeminiSettings } from '../components/GeminiSettings';
 import { requestPersistence } from '../lib/db';
 import { defaultRemoteUrl, updateSettings, useSettings } from '../lib/settings';
 
@@ -10,7 +11,7 @@ function formatBytes(n?: number): string {
   return `${(n / 1024 / 1024 / 1024).toFixed(1)} GB`;
 }
 
-export function SettingsPage() {
+export function SettingsPage({ online }: { online: boolean }) {
   const settings = useSettings();
   const [estimate, setEstimate] = useState<StorageEstimate | null>(null);
   const [persisted, setPersisted] = useState<boolean | null>(null);
@@ -32,6 +33,7 @@ export function SettingsPage() {
   return (
     <section>
       <InstallCard />
+      <GeminiSettings online={online} />
 
       <div class="card">
         <h3>Database remoto</h3>

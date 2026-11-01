@@ -53,7 +53,7 @@ export function App() {
         <RemoteUpdate />
         {tab === 'chiedi' && <AskPage online={online} />}
         {tab === 'database' && <DatabasePage online={online} />}
-        {tab === 'impostazioni' && <SettingsPage />}
+        {tab === 'impostazioni' && <SettingsPage online={online} />}
       </main>
 
       <nav class="tabbar" aria-label="Sezioni">

@@ -1,3 +1,4 @@
+import { DEFAULT_MODEL } from '../shared/gemini.ts';
 import { getMeta, setMeta } from './db';
 import { useLiveQuery } from './live';
 
@@ -8,12 +9,18 @@ export interface Settings {
   autoCheck: boolean;
   /** Interruttore "Verifica anche sul web" della schermata Chiedi. */
   webCheck: boolean;
+  /** Chiave API Gemini: salvata solo in IndexedDB su questo dispositivo, mai nel codice né nei backup. */
+  apiKey: string;
+  /** Nome del modello Gemini (configurabile perché nomi e limiti gratuiti cambiano). */
+  model: string;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
   remoteUrl: '',
   autoCheck: true,
-  webCheck: false
+  webCheck: false,
+  apiKey: '',
+  model: DEFAULT_MODEL
 };
 
 /** db.json pubblicato su GitHub Pages insieme all'app. */
