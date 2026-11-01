@@ -50,6 +50,35 @@ e il database, che da lì in poi funzionano anche offline.
 
 > Dalla versione 16.4 di iOS si può installare anche da Chrome o Edge per iPhone (menu Condividi → Aggiungi alla schermata Home).
 
+### App per Android (APK)
+
+In alternativa all'installazione da Chrome, su Android si può scaricare l'app:
+
+1. Apri l'indirizzo dell'app dal telefono Android e tocca **📱 Scarica l'app per Android (APK)**
+   (nella pagina di benvenuto o in *Impostazioni*), oppure usa direttamente
+   `https://atisl-2026.github.io/SICUREZZA/download/atisl-security.apk`.
+2. Apri il file scaricato; la prima volta Android chiede di **consentire l'installazione da questa fonte**
+   (Chrome o «File»): consentila e tocca **Installa**.
+
+L'APK è una *Trusted Web Activity*: apre l'app pubblicata con il motore di Chrome, quindi funziona offline,
+usa la fotocamera e **si aggiorna da sola** come la versione installata dal browser (contenuti e app web non
+richiedono di reinstallare l'APK). Serve Chrome aggiornato sul telefono.
+
+Per nascondere la barra dell'indirizzo in alto, il sito deve dichiarare l'app: il file `android/assetlinks.json`
+va pubblicato su `https://atisl-2026.github.io/.well-known/assetlinks.json`, cioè in un repository pubblico
+chiamato `Atisl-2026.github.io` (con un file vuoto `.nojekyll` e GitHub Pages attivo).
+
+L'APK viene compilato e firmato da GitHub Actions (workflow *App Android (APK)*, parte quando cambia la
+cartella `android/`) e consegnato sul ramo `apk`; da lì va copiato in `public/download/`. La chiave di firma
+è usa-e-getta: una nuova versione dell'APK si installa dopo aver disinstallato la precedente (i dati restano in
+Chrome) e richiede di aggiornare l'impronta in `assetlinks.json`.
+
+### iPhone
+
+Apple non permette di installare app fuori dall'App Store senza l'abbonamento Apple Developer (99 $/anno) e un Mac:
+su iPhone l'app si installa gratis da **Safari → Condividi → Aggiungi alla schermata Home** (sopra) e funziona
+come un'app normale, anche offline.
+
 ### Aggiornamenti dell'app
 
 Quando pubblichi una nuova versione, l'app la scarica in background e mostra

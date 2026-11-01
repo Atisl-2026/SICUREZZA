@@ -12,6 +12,10 @@ export function isStandalone(): boolean {
   );
 }
 
+export function isAndroid(): boolean {
+  return /Android/i.test(navigator.userAgent);
+}
+
 export function isIOS(): boolean {
   const ua = navigator.userAgent;
   // iPadOS si presenta come Mac: lo riconosciamo dal touch

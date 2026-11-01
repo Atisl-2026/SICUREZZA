@@ -1,5 +1,5 @@
 # Compila e firma l'app Android (APK, Trusted Web Activity) e la consegna sul ramo "apk".
-# Parte da sola quando cambia la cartella android/ (o a mano: Actions → App Android (APK) → Run workflow).
+# Parte da sola quando cambia l'app in android/ (es. versionCode, icone) o a mano: Actions → App Android (APK) → Run workflow.
 #
 # Firma: chiave creata a ogni compilazione e poi distrutta (nessuno la possiede, nessuno può firmare
 # falsi aggiornamenti). Una nuova versione dell'APK si installa quindi dopo aver tolto la precedente:
@@ -10,7 +10,9 @@ name: App Android (APK)
 on:
   push:
     branches: [main]
-    paths: ['android/**', '.github/workflows/android.yml']
+    # solo quando cambia l'app Android (non per assetlinks.json o per questo file):
+    # ogni compilazione usa una chiave nuova
+    paths: ['android/app/**', 'android/build.gradle', 'android/settings.gradle', 'android/gradle.properties']
   workflow_dispatch:
 
 permissions:

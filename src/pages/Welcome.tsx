@@ -1,4 +1,5 @@
 import { asset, BRAND } from '../branding';
+import { ApkLink } from '../components/ApkLink';
 
 /** Pagina di benvenuto, prima della scelta dell'accesso. */
 export function WelcomePage({ onEnter }: { onEnter: () => void }) {
@@ -25,6 +26,7 @@ export function WelcomePage({ onEnter }: { onEnter: () => void }) {
       <button type="button" class="btn btn-primary btn-block welcome-enter" onClick={onEnter}>
         Entra
       </button>
+      <ApkLink />
     </div>
   );
 }

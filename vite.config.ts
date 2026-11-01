@@ -70,11 +70,13 @@ export default defineConfig({
         // Tutto l'app shell è in precache: l'app si apre e funziona senza rete.
         globPatterns: ['**/*.{js,css,html,svg,png,ico,webmanifest,woff2}'],
         navigateFallback: 'index.html',
+        // l'APK si scarica dal server, non dalla cache dell'app
+        navigateFallbackDenylist: [/\/download\//],
         cleanupOutdatedCaches: true,
         // I file dei dati NON vanno in precache: li gestisce l'app (versione + conferma).
         // il lettore PDF (~1,7 MB) serve solo al programmatore: fuori dall'installazione,
         // messo in cache al primo uso
-        globIgnores: ['**/data/*.json', '**/assets/pdf/**'],
+        globIgnores: ['**/data/*.json', '**/assets/pdf/**', '**/download/**'],
         runtimeCaching: [
           {
             urlPattern: ({ url }) => url.pathname.includes('/assets/pdf/'),

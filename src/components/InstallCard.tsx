@@ -1,4 +1,5 @@
-import { useInstall } from '../lib/install';
+import { isAndroid, useInstall } from '../lib/install';
+import { ApkLink } from './ApkLink';
 
 /** Invito all'installazione: pulsante su Android, istruzioni su iPhone/iPad. */
 export function InstallCard() {
@@ -11,6 +12,21 @@ export function InstallCard() {
         <h3>Installa l'app</h3>
         <p class="muted small">Aggiungila alla schermata Home per usarla anche senza connessione.</p>
         <button class="btn btn-primary btn-block" onClick={install}>Installa</button>
+        <p class="muted small apk-or">oppure</p>
+        <ApkLink variant="button" />
+      </div>
+    );
+  }
+
+  if (isAndroid()) {
+    return (
+      <div class="card">
+        <h3>Installa l'app</h3>
+        <p class="muted small">
+          In Chrome tocca il menu ⋮ → <strong>Installa app</strong>, oppure scarica l'app per Android
+          (dopo il download aprila e consenti l'installazione da questa fonte).
+        </p>
+        <ApkLink variant="button" />
       </div>
     );
   }

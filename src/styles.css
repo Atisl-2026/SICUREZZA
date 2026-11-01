@@ -598,3 +598,7 @@ dl.kv.card dd { overflow-wrap: anywhere; }
   .topbar .badge::before { width: 10px; height: 10px; }
 }
 .photo-result-wrap { scroll-margin-top: calc(70px + var(--safe-top)); }
+
+.apk-link { margin-top: 10px; text-decoration: none; }
+a.link-btn.apk-link { display: inline-flex; align-items: center; justify-content: center; }
+.apk-or { text-align: center; margin: 10px 0 0; }
