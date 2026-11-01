@@ -1,0 +1,5 @@
+package: name='io.github.atisl2026.security' versionCode='1' versionName='1.0.0' platformBuildVersionName='15' platformBuildVersionCode='35' compileSdkVersion='35' compileSdkVersionCodename='15'
+minSdkVersion:'21'
+targetSdkVersion:'35'
+uses-permission: name='android.permission.INTERNET'
+application-label:'ATISL Security'
