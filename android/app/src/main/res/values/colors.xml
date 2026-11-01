@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- blu CONFSAL e bianco, come l'app web -->
+    <color name="colorPrimary">#1E5C86</color>
+    <color name="navigationColor">#FFFFFF</color>
+    <color name="backgroundColor">#FFFFFF</color>
+    <color name="iconBackground">#FFFFFF</color>
+</resources>

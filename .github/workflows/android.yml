@@ -1,0 +1,72 @@
+# Compila e firma l'app Android (APK, Trusted Web Activity) e la consegna sul ramo "apk".
+# Parte da sola quando cambia la cartella android/ (o a mano: Actions → App Android (APK) → Run workflow).
+#
+# Firma: chiave creata a ogni compilazione e poi distrutta (nessuno la possiede, nessuno può firmare
+# falsi aggiornamenti). Una nuova versione dell'APK si installa quindi dopo aver tolto la precedente:
+# i dati non si perdono perché restano in Chrome. L'APK apre il sito: i contenuti e l'app web
+# si aggiornano senza reinstallare nulla.
+name: App Android (APK)
+
+on:
+  push:
+    branches: [main]
+    paths: ['android/**', '.github/workflows/android.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Scarica il codice
+        uses: actions/checkout@v6
+
+      - name: Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Gradle
+        uses: gradle/actions/setup-gradle@v5
+        with:
+          gradle-version: '8.14.3'
+
+      - name: Compila l'APK
+        run: gradle -p android assembleRelease --no-daemon --stacktrace
+
+      - name: Firma l'APK
+        run: |
+          set -euo pipefail
+          BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          echo "build-tools: $BT"
+          PASS=$(openssl rand -hex 24)
+          keytool -genkeypair -keystore firma.p12 -storetype PKCS12 -alias atisl -keyalg RSA -keysize 3072 \
+            -validity 10950 -storepass "$PASS" -keypass "$PASS" -dname "CN=ATISL Security, O=ATISL, C=IT"
+          "$BT/zipalign" -p -f 4 android/app/build/outputs/apk/release/app-release-unsigned.apk allineato.apk
+          "$BT/apksigner" sign --ks firma.p12 --ks-pass "pass:$PASS" --ks-key-alias atisl \
+            --v1-signing-enabled true --v2-signing-enabled true --v3-signing-enabled true \
+            --out atisl-security.apk allineato.apk
+          "$BT/apksigner" verify --verbose --print-certs atisl-security.apk | tee verifica.txt
+          keytool -list -v -keystore firma.p12 -storepass "$PASS" -alias atisl | grep 'SHA256:' | sed 's/.*SHA256: //' > impronta-sha256.txt
+          "$BT/aapt2" dump badging atisl-security.apk | head -5 > info.txt || true
+          rm -f firma.p12
+
+      - name: Consegna sul ramo "apk"
+        run: |
+          set -euo pipefail
+          mkdir consegna
+          cp atisl-security.apk impronta-sha256.txt verifica.txt info.txt consegna/
+          echo "${GITHUB_SHA}" > consegna/commit.txt
+          cd consegna
+          git init -q -b apk
+          git add .
+          git -c user.name="github-actions" -c user.email="github-actions@users.noreply.github.com" \
+            commit -qm "APK firmato da ${GITHUB_SHA::7}"
+          git push -f "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" apk
+          echo "Impronta del certificato (per assetlinks.json):"
+          cat impronta-sha256.txt
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
