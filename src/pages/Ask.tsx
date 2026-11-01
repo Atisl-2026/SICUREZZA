@@ -1,0 +1,226 @@
+import { useEffect, useRef, useState } from 'preact/hooks';
+import { DbSection, WebSection, type AiUnavailable } from '../components/Answer';
+import { IconSend } from '../components/Icons';
+import { askDatabase, askWeb, type AiState } from '../lib/ai';
+import { db } from '../lib/db';
+import { addToHistory, clearHistory, removeFromHistory, useHistory } from '../lib/history';
+import { useLiveQuery } from '../lib/live';
+import { searchLocal, type LocalResult } from '../lib/search';
+import { getSettings, updateSettings, useSettings } from '../lib/settings';
+
+interface Props {
+  online: boolean;
+}
+
+interface AskState {
+  draft: string;
+  asked: string;
+  results: LocalResult[] | null;
+  dbAi: AiState;
+  webAi: AiState;
+  unavailable: AiUnavailable;
+}
+
+const IDLE: AiState = { status: 'idle' };
+
+// Lo stato sopravvive al cambio di scheda (il componente viene smontato).
+let saved: AskState = { draft: '', asked: '', results: null, dbAi: IDLE, webAi: IDLE, unavailable: null };
+let inflight: AbortController | null = null;
+
+export function AskPage({ online }: Props) {
+  const [draft, setDraft] = useState(saved.draft);
+  const [asked, setAsked] = useState(saved.asked);
+  const [results, setResults] = useState<LocalResult[] | null>(saved.results);
+  const [dbAi, setDbAi] = useState<AiState>(saved.dbAi);
+  const [webAi, setWebAi] = useState<AiState>(saved.webAi);
+  const [unavailable, setUnavailable] = useState<AiUnavailable>(saved.unavailable);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const settings = useSettings();
+  const history = useHistory();
+  const recordCount = useLiveQuery(() => db.records.count());
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const resultsRef = useRef<HTMLDivElement>(null);
+  const mounted = useRef(true);
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
+
+  useEffect(() => {
+    saved = { draft, asked, results, dbAi, webAi, unavailable };
+  }, [draft, asked, results, dbAi, webAi, unavailable]);
+
+  // il campo cresce con il testo (fino al massimo definito nel CSS)
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${el.scrollHeight + 4}px`;
+  }, [draft]);
+
+  /** Aggiorna lo stato anche se nel frattempo l'utente ha cambiato scheda. */
+  const setAi = (which: 'db' | 'web', v: AiState) => {
+    saved = { ...saved, [which === 'db' ? 'dbAi' : 'webAi']: v };
+    if (mounted.current) (which === 'db' ? setDbAi : setWebAi)(v);
+  };
+
+  const runAi = async (question: string, res: LocalResult[], only?: 'db' | 'web') => {
+    inflight?.abort();
+    const ctrl = new AbortController();
+    inflight = ctrl;
+    const s = await getSettings();
+    const isOnline = navigator.onLine;
+    const why: AiUnavailable = !isOnline ? 'offline' : !s.apiKey.trim() ? 'nokey' : null;
+    setUnavailable(why);
+
+    const jobs: Promise<void>[] = [];
+    if (only !== 'web') {
+      if (!why && res.length) {
+        setAi('db', { status: 'loading' });
+        jobs.push(askDatabase(question, res, s, ctrl.signal).then((v) => { if (!ctrl.signal.aborted) setAi('db', v); }));
+      } else setAi('db', IDLE);
+    }
+    if (only !== 'db') {
+      if (!why && s.webCheck) {
+        setAi('web', { status: 'loading' });
+        jobs.push(askWeb(question, s, ctrl.signal).then((v) => {
+          if (ctrl.signal.aborted) return;
+          setAi('web', v);
+          if (v.status === 'error' && v.disabledWeb) updateSettings({ webCheck: false });
+        }));
+      } else setAi('web', IDLE);
+    }
+    await Promise.all(jobs);
+    if (inflight === ctrl) inflight = null;
+  };
+
+  const ask = async (q: string) => {
+    const question = q.trim();
+    if (!question || busy) return;
+    setDraft(question);
+    setBusy(true);
+    setError('');
+    inflight?.abort(); // la domanda precedente non serve più
+    setAi('db', IDLE);
+    setAi('web', IDLE);
+    inputRef.current?.blur(); // chiude la tastiera su mobile
+    try {
+      const res = await searchLocal(question);
+      setAsked(question);
+      setResults(res);
+      addToHistory(question);
+      requestAnimationFrame(() => resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+      runAi(question, res);
+    } catch (e) {
+      setError(`Errore durante la ricerca: ${(e as Error).message}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const reset = () => {
+    inflight?.abort();
+    setDraft('');
+    setAsked('');
+    setResults(null);
+    setDbAi(IDLE);
+    setWebAi(IDLE);
+    inputRef.current?.focus();
+  };
+
+  const webOn = settings.webCheck && online;
+
+  return (
+    <section aria-labelledby="ask-title">
+      <h2 id="ask-title" class="sr-only">Chiedi</h2>
+      <form class="search-box" role="search" onSubmit={(e) => { e.preventDefault(); ask(draft); }}>
+        <label for="q" class="sr-only">La tua domanda</label>
+        <textarea
+          id="q"
+          ref={inputRef}
+          rows={2}
+          placeholder="Scrivi una domanda…"
+          value={draft}
+          enterkeyhint="search"
+          autocomplete="off"
+          onInput={(e) => setDraft((e.target as HTMLTextAreaElement).value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
+              e.preventDefault();
+              ask(draft);
+            }
+          }}
+        />
+        <button class="btn btn-primary" type="submit" aria-label="Cerca" disabled={!draft.trim() || busy}>
+          {busy ? <span class="spinner" aria-hidden="true" /> : <IconSend />}
+        </button>
+      </form>
+
+      <div class="card card-tight">
+        <label class="switch">
+          <span>
+            Verifica anche sul web
+            <br />
+            <span class="muted small">
+              {!online
+                ? 'Disponibile quando sei online'
+                : !settings.apiKey
+                  ? 'Richiede la chiave Gemini (Impostazioni)'
+                  : 'Seconda ricerca con Google tramite Gemini'}
+            </span>
+          </span>
+          <input
+            type="checkbox"
+            role="switch"
+            checked={webOn}
+            disabled={!online}
+            onChange={(e) => updateSettings({ webCheck: (e.target as HTMLInputElement).checked })}
+          />
+        </label>
+      </div>
+
+      {error && <p class="notice notice-error" role="alert">{error}</p>}
+
+      {results && (
+        <div ref={resultsRef} class="answer" aria-live="polite">
+          <div class="answer-head">
+            <p class="asked">«{asked}»</p>
+            <button type="button" class="link-btn" onClick={reset}>Nuova domanda</button>
+          </div>
+          <DbSection
+            results={results}
+            ai={dbAi}
+            unavailable={unavailable}
+            recordCount={recordCount}
+            onRetry={() => runAi(asked, results, 'db')}
+          />
+          <WebSection ai={webAi} />
+        </div>
+      )}
+
+      {history.length > 0 && (
+        <div class="card card-flush history">
+          <div class="history-head">
+            <h3>Domande recenti</h3>
+            <button type="button" class="link-btn" onClick={() => confirm('Cancellare la cronologia?') && clearHistory()}>
+              Cancella
+            </button>
+          </div>
+          <ul class="list">
+            {history.slice(0, 10).map((h) => (
+              <li key={h.t} class="history-item">
+                <button type="button" onClick={() => ask(h.q)}>{h.q}</button>
+                <button type="button" class="icon-btn" aria-label={`Rimuovi «${h.q}»`} onClick={() => removeFromHistory(h.q)}>×</button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {history.length === 0 && !results && (
+        <p class="muted small center">Le domande che fai restano solo su questo dispositivo.</p>
+      )}
+    </section>
+  );
+}
