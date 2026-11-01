@@ -46,9 +46,12 @@ export function formatContext(blocks: ContextBlock[]): string {
     .join('\n\n---\n\n');
 }
 
+/** Parte di un messaggio: testo o immagine (base64). */
+export type GeminiPart = { text: string } | { inlineData: { mimeType: string; data: string } };
+
 export interface GeminiRequest {
   systemInstruction?: { parts: { text: string }[] };
-  contents: { role: 'user' | 'model'; parts: { text: string }[] }[];
+  contents: { role: 'user' | 'model'; parts: GeminiPart[] }[];
   tools?: Record<string, unknown>[];
   generationConfig?: Record<string, unknown>;
 }

@@ -1,4 +1,4 @@
-# ATISL Sicurity
+# ATISL Security
 
 <img src="public/brand/logo-completo.png" alt="ATISL – CONFSAL" width="160">
 
@@ -138,6 +138,30 @@ comunque i risultati trovati sul dispositivo. Se la verifica sul web fallisce pe
 supporta, l'interruttore si disattiva da solo.
 
 Le ultime domande restano in **Domande recenti** (solo sul dispositivo; si possono cancellare).
+
+### Analisi foto (con l'AI)
+
+Per il programmatore e i soci con la password AI, nella scheda **Chiedi** c'è **📷 Analizza una foto**:
+
+1. **Scatta foto** o sceglile **Dalla galleria** (fino a 3, più angolazioni aiutano) e, se vuoi, scrivi cosa stai
+   controllando (es. *«ponteggio facciata nord, terzo impalcato»*).
+2. **Analizza**: l'app
+   - riduce le foto (lato lungo 1600 px) e **toglie i dati nascosti** (posizione GPS, modello del telefono);
+   - chiede a Gemini di descrivere cosa si vede e quali parole chiave cercare;
+   - cerca quelle parole **nell'archivio** (normativa, procedure, schede);
+   - chiede a Gemini di confrontare le foto con i brani trovati.
+3. La risposta ha sempre quattro parti: **Cosa si vede**, **Possibili non conformità** (con gravità e riferimento:
+   il numero apre la scheda dell'archivio; se la norma non è nell'archivio lo dice, senza inventare articoli),
+   **Non valutabile dalle immagini**, **Verifiche consigliate sul posto**.
+4. **Copia / condividi il testo** per incollarlo in un verbale o in un messaggio.
+
+Da sapere:
+
+- serve la connessione (l'analisi delle immagini avviene su Google Gemini); le foto non vengono salvate nell'app;
+- le violazioni vengono citate solo se la norma è nell'archivio: per i ponteggi, per esempio, carica le parti del
+  D.Lgs. 81/2008 sui ponteggi e le vostre procedure;
+- è un **supporto**: l'AI può non vedere tutto o sbagliare e non sostituisce il sopralluogo né la valutazione del tecnico;
+- ⚠️ sul piano gratuito Google può usare le foto inviate: evita volti riconoscibili, targhe e documenti.
 
 ### Archivio
 
@@ -406,6 +430,7 @@ src/
     merge.ts       regole di import manuale e aggiornamento remoto
     search.ts      analisi del testo in italiano, indice MiniSearch, estratti ed evidenziazione
     gemini.ts      richieste, parsing delle risposte, errori, citazioni
+    vision.ts      analisi foto: richieste a Gemini (descrizione, analisi con i brani) e lettura delle risposte
     markdown.ts    markdown delle risposte senza HTML grezzo
   lib/           database Dexie, indice persistente, AI, impostazioni, aggiornamento remoto
   components/    componenti dell'interfaccia

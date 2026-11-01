@@ -49,7 +49,7 @@ describe('richieste', () => {
     expect(sys).toMatch(/dillo chiaramente/);
     expect(sys).toMatch(/id del record/);
     expect(sys).toMatch(/non inventare/i);
-    const text = req.contents[0].parts[0].text;
+    const text = (req.contents[0].parts[0] as { text: string }).text;
     expect(text).toContain('id: procedure-richiesta-ferie');
     expect(text).toContain('id: faq-rol');
     expect(text).toContain('aggiornato: 2026-09-15');
@@ -61,7 +61,7 @@ describe('richieste', () => {
   it('Dal web: strumento google_search', () => {
     const req = buildWebRequest('Termine ferie non godute?');
     expect(req.tools).toEqual([{ google_search: {} }]);
-    expect(req.contents[0].parts[0].text).toBe('Termine ferie non godute?');
+    expect((req.contents[0].parts[0] as { text: string }).text).toBe('Termine ferie non godute?');
   });
 
   it('cleanModelName', () => {

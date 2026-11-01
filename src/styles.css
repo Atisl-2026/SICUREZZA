@@ -561,3 +561,40 @@ dl.kv.card dd { overflow-wrap: anywhere; }
 .login-brand-compact { margin: 4px 0 16px; }
 .login-brand-compact img { width: 64px; height: auto; }
 .login-brand-compact h1 { font-size: 1.35rem; margin-top: 6px; }
+
+/* ===== Analisi foto ===== */
+.photo-entry {
+  display: flex; align-items: center; gap: 14px; text-decoration: none; color: var(--text);
+  border-left: 4px solid var(--accent); padding: 14px 16px;
+}
+.photo-entry > span:nth-child(2) { display: flex; flex-direction: column; gap: 2px; flex: 1; }
+.photo-entry-icon { font-size: 1.8rem; }
+.photo-entry-arrow { font-size: 1.6rem; color: var(--text-muted); }
+.photo-page .privacy-warning { margin: 0 0 14px; }
+.photo-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px; }
+.photo-thumb { position: relative; margin: 0; aspect-ratio: 1; border-radius: 12px; overflow: hidden; background: var(--surface-2); }
+.photo-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.photo-remove {
+  position: absolute; top: 4px; right: 4px; width: 32px; height: 32px; border-radius: 50%; border: 0;
+  background: rgb(0 0 0 / 0.6); color: #fff; font-size: 1.2rem; line-height: 1; cursor: pointer;
+}
+.photo-add { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.photo-count { margin: 8px 0 12px; }
+.photo-note { min-height: 56px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface); width: 100%; resize: vertical; }
+.photo-steps { list-style: none; padding: 12px 16px; }
+.photo-steps li { display: flex; align-items: center; gap: 10px; min-height: 36px; }
+.photo-steps .step-todo { color: var(--text-muted); }
+.photo-steps .step-done { color: var(--ok); }
+.photo-steps .spinner { width: 18px; height: 18px; border-width: 2px; color: var(--primary); }
+.photo-result .md h4 { font-size: 1.02rem; margin: 1.1em 0 0.4em; color: var(--primary); }
+.photo-result .md > h4:first-child { margin-top: 0; }
+.photo-actions { margin-top: 12px; }
+.photo-query { margin: 4px 2px 6px; overflow-wrap: anywhere; }
+
+/* intestazione su schermi stretti: lo stato online diventa un pallino colorato */
+@media (max-width: 430px) {
+  .topbar .badge { padding: 6px; }
+  .topbar .badge .badge-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .topbar .badge::before { width: 10px; height: 10px; }
+}
+.photo-result-wrap { scroll-margin-top: calc(70px + var(--safe-top)); }

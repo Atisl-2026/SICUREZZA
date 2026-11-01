@@ -66,8 +66,13 @@ export function App() {
         </div>
         <div class="topbar-right">
           <span class={`role-badge role-${access.ruolo}`}>{RUOLO_LABEL[access.ruolo]}</span>
-          <span class={`badge ${online ? 'badge-online' : 'badge-offline'}`} role="status" aria-live="polite">
-            {online ? 'Online' : 'Offline'}
+          <span
+            class={`badge ${online ? 'badge-online' : 'badge-offline'}`}
+            role="status"
+            aria-live="polite"
+            title={online ? 'Online' : 'Offline'}
+          >
+            <span class="badge-text">{online ? 'Online' : 'Offline'}</span>
           </span>
         </div>
       </header>

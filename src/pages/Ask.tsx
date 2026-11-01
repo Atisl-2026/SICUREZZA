@@ -7,6 +7,8 @@ import { db } from '../lib/db';
 import { addToHistory, clearHistory, removeFromHistory, useHistory } from '../lib/history';
 import { useLiveQuery } from '../lib/live';
 import { searchLocal, type LocalResult } from '../lib/search';
+import { useRoute } from '../lib/route';
+import { PhotoPage } from './Photo';
 import { getSettings, updateSettings, useSettings } from '../lib/settings';
 
 interface Props {
@@ -29,7 +31,14 @@ const IDLE: AiState = { status: 'idle' };
 let saved: AskState = { draft: '', asked: '', results: null, dbAi: IDLE, webAi: IDLE, unavailable: null };
 let inflight: AbortController | null = null;
 
-export function AskPage({ online, access }: Props) {
+/** Scheda Chiedi: domande sull'archivio, oppure analisi foto (#chiedi/foto, solo con l'AI). */
+export function AskPage(props: Props) {
+  const route = useRoute();
+  if (route[1] === 'foto' && aiAllowed(props.access)) return <PhotoPage online={props.online} />;
+  return <AskMain {...props} />;
+}
+
+function AskMain({ online, access }: Props) {
   const [draft, setDraft] = useState(saved.draft);
   const [asked, setAsked] = useState(saved.asked);
   const [results, setResults] = useState<LocalResult[] | null>(saved.results);
@@ -162,6 +171,17 @@ export function AskPage({ online, access }: Props) {
           {busy ? <span class="spinner" aria-hidden="true" /> : <IconSend />}
         </button>
       </form>
+
+      {canAi && (
+        <a class="card photo-entry" href="#chiedi/foto">
+          <span class="photo-entry-icon" aria-hidden="true">📷</span>
+          <span>
+            <strong>Analizza una foto</strong>
+            <span class="small muted">Ponteggi, cantieri, attrezzature: possibili criticità con le norme dell'archivio</span>
+          </span>
+          <span aria-hidden="true" class="photo-entry-arrow">›</span>
+        </a>
+      )}
 
       {canAi && <div class="card card-tight">
         <label class="switch">

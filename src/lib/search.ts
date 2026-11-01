@@ -1,6 +1,6 @@
 import type MiniSearch from 'minisearch';
 import {
-  buildIndex, INDEX_FORMAT, loadIndex, retrieve, toSearchDocs, type Hit, type SearchDoc
+  buildIndex, INDEX_FORMAT, loadIndex, retrieve, toSearchDocs, type Hit, type RetrieveOptions, type SearchDoc
 } from '../shared/search.ts';
 import type { Chunk, StoredRecord } from '../shared/types.ts';
 import { db, getMeta, setMeta } from './db';
@@ -63,9 +63,9 @@ export interface LocalResult extends Hit {
 }
 
 /** Ricerca locale: i 6–8 blocchi più pertinenti, con il record padre. */
-export async function searchLocal(query: string): Promise<LocalResult[]> {
+export async function searchLocal(query: string, opts?: Partial<RetrieveOptions>): Promise<LocalResult[]> {
   const index = await getIndex();
-  const hits = retrieve(index, query);
+  const hits = retrieve(index, query, opts);
   if (!hits.length) return [];
   const [chunks, records] = await Promise.all([
     db.chunks.bulkGet(hits.map((h) => h.chunkId)),

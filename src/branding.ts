@@ -1,6 +1,6 @@
 // Identità dell'app: nome, marchio e contatti. Unico punto da modificare per personalizzarla.
 export const BRAND = {
-  nome: 'ATISL Sicurity',
+  nome: 'ATISL Security',
   nomeBreve: 'ATISL',
   sottotitolo: 'Associazione Tecnici e Ispettori per la Sicurezza sul Lavoro',
   logo: 'brand/logo-atisl.png',

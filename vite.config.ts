@@ -47,7 +47,7 @@ export default defineConfig({
       injectRegister: false,
       includeAssets: ['icons/*.png', 'brand/*.png'],
       manifest: {
-        name: 'ATISL Sicurity',
+        name: 'ATISL Security',
         short_name: 'ATISL',
         description: 'ATISL – Associazione Tecnici e Ispettori per la Sicurezza sul Lavoro: normativa, procedure e schede tecniche anche offline, con risposte AI.',
         lang: 'it',
