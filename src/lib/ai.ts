@@ -3,6 +3,7 @@ import {
 } from '../shared/gemini.ts';
 import type { LocalResult } from './search';
 import type { Settings } from './settings';
+import { withModelFallback } from './model';
 
 export type AiState =
   | { status: 'idle' }
@@ -27,9 +28,9 @@ const asGeminiError = (e: unknown) =>
 /** Risposta "Dal database": solo sulla base dei blocchi trovati localmente. */
 export async function askDatabase(question: string, results: LocalResult[], s: Settings, signal: AbortSignal): Promise<AiState> {
   try {
-    const answer = await callGemini(buildDbRequest(question, toBlocks(results)), {
-      apiKey: s.apiKey, model: s.model, timeoutMs: 40000, signal
-    });
+    const answer = await withModelFallback(s, (model) =>
+      callGemini(buildDbRequest(question, toBlocks(results)), { apiKey: s.apiKey, model, timeoutMs: 40000, signal })
+    );
     return { status: 'done', answer };
   } catch (e) {
     return { status: 'error', error: asGeminiError(e) };
@@ -44,9 +45,9 @@ export function shouldDisableWeb(e: GeminiError): boolean {
 /** Risposta "Dal web": grounding con Ricerca Google. */
 export async function askWeb(question: string, s: Settings, signal: AbortSignal): Promise<AiState> {
   try {
-    const answer = await callGemini(buildWebRequest(question), {
-      apiKey: s.apiKey, model: s.model, timeoutMs: 60000, signal
-    });
+    const answer = await withModelFallback(s, (model) =>
+      callGemini(buildWebRequest(question), { apiKey: s.apiKey, model, timeoutMs: 60000, signal })
+    );
     return { status: 'done', answer };
   } catch (e) {
     const error = asGeminiError(e);

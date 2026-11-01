@@ -1,8 +1,8 @@
 import { useState } from 'preact/hooks';
 import { updateSettings, useSettings } from '../lib/settings';
-import { AI_STUDIO_KEY_URL, checkModel, cleanModelName, DEFAULT_MODEL, GeminiError } from '../shared/gemini.ts';
-
-const MODEL_SUGGESTIONS = ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-2.5-pro'];
+import {
+  AI_STUDIO_KEY_URL, checkModel, cleanModelName, GeminiError, listModels, rankModels, type ModelInfo
+} from '../shared/gemini.ts';
 
 export function GeminiSettings({ online }: { online: boolean }) {
   const s = useSettings();
@@ -11,6 +11,8 @@ export function GeminiSettings({ online }: { online: boolean }) {
   const [show, setShow] = useState(false);
   const [test, setTest] = useState<{ ok: boolean; msg: string } | null>(null);
   const [testing, setTesting] = useState(false);
+  const [models, setModels] = useState<ModelInfo[] | null>(null);
+  const [loadingModels, setLoadingModels] = useState(false);
 
   const keyValue = key ?? s.apiKey;
   const modelValue = model ?? s.model;
@@ -32,9 +34,35 @@ export function GeminiSettings({ online }: { online: boolean }) {
       const info = await checkModel({ apiKey: keyValue, model: modelValue, timeoutMs: 15000 });
       setTest({ ok: true, msg: `Chiave valida. Modello disponibile: ${info.displayName ?? info.name}.` });
     } catch (e) {
+      // modello ritirato o scritto male: si sceglie da soli quello consigliato
+      if (e instanceof GeminiError && e.kind === 'modello') {
+        try {
+          const best = rankModels(await listModels({ apiKey: keyValue, model: modelValue, timeoutMs: 15000 }))[0];
+          if (best) {
+            await updateSettings({ model: best.id });
+            setTest({ ok: true, msg: `Chiave valida. Il modello «${cleanModelName(modelValue)}» non è più disponibile: impostato «${best.id}» (${best.displayName}).` });
+            return;
+          }
+        } catch {
+          /* si mostra l'errore originale */
+        }
+      }
       setTest({ ok: false, msg: e instanceof GeminiError ? e.message : 'Verifica non riuscita.' });
     } finally {
       setTesting(false);
+    }
+  };
+
+  const onShowModels = async () => {
+    await save();
+    setLoadingModels(true);
+    setTest(null);
+    try {
+      setModels(rankModels(await listModels({ apiKey: keyValue, model: modelValue, timeoutMs: 15000 })));
+    } catch (e) {
+      setTest({ ok: false, msg: e instanceof GeminiError ? e.message : 'Elenco dei modelli non disponibile.' });
+    } finally {
+      setLoadingModels(false);
     }
   };
 
@@ -92,17 +120,41 @@ export function GeminiSettings({ online }: { online: boolean }) {
           autocapitalize="off"
           autocorrect="off"
           spellcheck={false}
-          placeholder={DEFAULT_MODEL}
+          placeholder="gemini-…-flash"
           value={modelValue}
           onInput={(e) => { setModel((e.target as HTMLInputElement).value); setTest(null); }}
           onBlur={save}
         />
-        <datalist id="gemini-models">{MODEL_SUGGESTIONS.map((m) => <option key={m} value={m} />)}</datalist>
+        <datalist id="gemini-models">{(models ?? []).map((m) => <option key={m.id} value={m.id} />)}</datalist>
         <span class="muted small">
-          Predefinito: {DEFAULT_MODEL}. I nomi e i limiti gratuiti cambiano nel tempo: se un modello smette di
-          funzionare, controlla i modelli disponibili in AI Studio.
+          Google ritira periodicamente i modelli: se quello impostato non esiste più, l'app ne sceglie da sola
+          uno disponibile. Puoi anche sceglierlo dall'elenco.
         </span>
       </label>
+
+      <button type="button" class="link-btn" disabled={!keyValue.trim() || !online || loadingModels} onClick={onShowModels}>
+        {loadingModels ? 'Caricamento dei modelli…' : 'Mostra i modelli disponibili'}
+      </button>
+      {models && (
+        <div class="model-list" role="list">
+          {models.length === 0 && <p class="muted small">Nessun modello adatto trovato per questa chiave.</p>}
+          {models.slice(0, 12).map((m, i) => (
+            <button
+              type="button"
+              role="listitem"
+              key={m.id}
+              class={`model-item ${cleanModelName(s.model) === m.id ? 'is-current' : ''}`}
+              onClick={async () => { await updateSettings({ model: m.id }); setModel(null); setTest(null); }}
+            >
+              <span>
+                <strong>{m.id}</strong>
+                <span class="small muted">{m.displayName}</span>
+              </span>
+              {cleanModelName(s.model) === m.id ? <span class="chip">in uso</span> : i === 0 ? <span class="chip chip-demo">consigliato</span> : null}
+            </button>
+          ))}
+        </div>
+      )}
 
       <div class="btn-row">
         <button type="button" class="btn btn-primary" disabled={!keyValue.trim() || !online || testing} onClick={onTest}>

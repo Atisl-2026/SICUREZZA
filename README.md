@@ -108,9 +108,11 @@ Dove finisce la chiave:
 > database) per migliorare i propri servizi, anche con revisori umani. **Non usare l'AI con dati personali, sensibili
 > o riservati.** Offline e senza chiave l'app non invia nulla a nessuno.
 
-**Modello**: il predefinito è `gemini-2.5-flash`. Nomi dei modelli e limiti gratuiti cambiano nel tempo:
-se un modello smette di funzionare o esaurisce spesso la quota, scrivine un altro in *Impostazioni → Modello*
-(per esempio `gemini-2.5-flash-lite`, più leggero) scegliendolo tra quelli elencati in AI Studio.
+**Modello**: il predefinito è `gemini-flash-latest` (l'ultimo Gemini Flash). Google ritira periodicamente i modelli:
+se quello impostato non esiste più, l'app chiede a Google l'elenco dei modelli disponibili per la chiave, sceglie da
+sola il più adatto (un Flash stabile e recente), ripete la domanda e lo salva. In *Impostazioni → Mostra i modelli
+disponibili* puoi anche sceglierlo tu (per esempio un «Flash-Lite», più leggero, se la quota si esaurisce spesso).
+Alla pubblicazione successiva il modello aggiornato arriva anche ai soci con la password AI.
 
 ---
 
@@ -430,7 +432,7 @@ I dati stanno nel browser del telefono (IndexedDB). L'app chiede al sistema l'**
 | Su iPhone manca «Aggiungi alla schermata Home» | apri il link in Safari (non dentro WhatsApp, Mail ecc.: usa «Apri in Safari») |
 | «Quota gratuita di Gemini esaurita» | attendi (i limiti si azzerano ogni minuto o ogni giorno) o prova un modello più leggero; la ricerca locale funziona comunque |
 | «La chiave API Gemini non è valida» | ricopia la chiave da AI Studio senza spazi e tocca *Verifica chiave* |
-| «Modello Gemini non trovato» | il nome del modello è cambiato: scegline uno disponibile in AI Studio |
+| «Modello Gemini non trovato» | l'app sceglie da sola un modello disponibile; se l'errore resta, *Impostazioni → Mostra i modelli disponibili* e toccane uno |
 | «L'API Gemini non è disponibile nel paese» | Google non offre l'API nella tua zona: l'app funziona solo con la ricerca locale |
 | La verifica sul web si è disattivata | quota esaurita o modello senza Ricerca Google: riattivala più tardi o cambia modello |
 | I contenuti non si aggiornano | *Archivio → Controlla aggiornamenti*; verifica che il workflow su GitHub sia verde |

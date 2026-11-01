@@ -642,3 +642,13 @@ a.link-btn.apk-link { display: inline-flex; align-items: center; justify-content
 .check-row input { width: 22px; height: 22px; margin-top: 2px; flex: none; accent-color: var(--primary); }
 .detailed-actions { justify-content: flex-end; }
 .detailed-actions .btn-primary { min-width: 140px; }
+
+/* elenco dei modelli Gemini */
+.model-list { display: grid; gap: 6px; margin: 4px 0 14px; }
+.model-item {
+  appearance: none; display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%;
+  min-height: 52px; padding: 8px 12px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface);
+  text-align: left; cursor: pointer; color: var(--text);
+}
+.model-item > span:first-child { display: flex; flex-direction: column; min-width: 0; overflow-wrap: anywhere; }
+.model-item.is-current { border-color: var(--primary); border-width: 2px; }

@@ -6,6 +6,7 @@ import {
 import { toBlocks } from './ai';
 import { searchLocal, type LocalResult } from './search';
 import type { Settings } from './settings';
+import { withModelFallback } from './model';
 
 export const MAX_PHOTOS = 3;
 const MAX_SIDE = 1600;
@@ -94,7 +95,11 @@ export async function analyzePhotos(
   const opts = { apiKey: s.apiKey, model: s.model, timeoutMs: 60000, signal };
 
   onStep('descrizione');
-  const first = await callGemini(buildDescribeRequest(images, note), opts);
+  let model = s.model;
+  const first = await withModelFallback(s, (m) => {
+    model = m;
+    return callGemini(buildDescribeRequest(images, note), { ...opts, model: m });
+  });
   const description = parseDescription(first.text);
 
   onStep('ricerca');
@@ -102,7 +107,7 @@ export async function analyzePhotos(
   const results = query ? await searchLocal(query, { limit: 10, maxPerRecord: 3 }) : [];
 
   onStep('analisi');
-  const answer = await callGemini(buildAnalysisRequest(images, note, description, toBlocks(results)), { ...opts, timeoutMs: 90000 });
+  const answer = await callGemini(buildAnalysisRequest(images, note, description, toBlocks(results)), { ...opts, model, timeoutMs: 90000 });
   return { description, query, results, answer };
 }
 

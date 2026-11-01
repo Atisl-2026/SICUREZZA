@@ -66,7 +66,7 @@ describe('richieste', () => {
 
   it('cleanModelName', () => {
     expect(cleanModelName(' models/gemini-2.5-pro ')).toBe('gemini-2.5-pro');
-    expect(cleanModelName('')).toBe('gemini-2.5-flash');
+    expect(cleanModelName('')).toBe('gemini-flash-latest');
   });
 });
 

@@ -3,7 +3,8 @@
 // funzioni pure, testate in tests/gemini.test.ts.
 
 export const GEMINI_ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta';
-export const DEFAULT_MODEL = 'gemini-2.5-flash';
+// alias che Google aggiorna all'ultimo Flash; se sparisse, l'app sceglie da sola un modello disponibile (lib/model.ts)
+export const DEFAULT_MODEL = 'gemini-flash-latest';
 export const AI_STUDIO_KEY_URL = 'https://aistudio.google.com/app/apikey';
 
 // ============================================================ richieste
@@ -261,6 +262,69 @@ export async function checkModel(opts: CallOptions): Promise<{ name: string; dis
     opts
   )) as { name: string; displayName?: string };
   return json;
+}
+
+// ============================================================ modelli disponibili
+
+export interface ModelInfo {
+  /** "gemini-2.5-flash" (senza il prefisso "models/") */
+  id: string;
+  displayName: string;
+}
+
+interface RawModel {
+  name: string;
+  displayName?: string;
+  supportedGenerationMethods?: string[];
+}
+
+/** Elenco dei modelli che la chiave può usare per generare testo. */
+export async function listModels(opts: CallOptions): Promise<ModelInfo[]> {
+  const out: ModelInfo[] = [];
+  let pageToken = '';
+  for (let page = 0; page < 5; page++) {
+    const json = (await requestJson(
+      `${GEMINI_ENDPOINT}/models?pageSize=200${pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : ''}`,
+      { method: 'GET' },
+      opts
+    )) as { models?: RawModel[]; nextPageToken?: string };
+    for (const m of json.models ?? []) {
+      if (!(m.supportedGenerationMethods ?? []).includes('generateContent')) continue;
+      out.push({ id: cleanModelName(m.name), displayName: m.displayName || cleanModelName(m.name) });
+    }
+    if (!json.nextPageToken) break;
+    pageToken = json.nextPageToken;
+  }
+  return out;
+}
+
+/** Modelli adatti all'app: testo e immagini in ingresso, risposta testuale (niente audio, immagini, embedding…). */
+const NOT_SUITABLE = /(image|tts|audio|live|embed|aqa|imagen|veo|learnlm|gemma|robotics|computer-use|native|thinking-exp|nano|banana)/i;
+
+function versionOf(id: string): number {
+  const m = id.match(/gemini-(\d+(?:\.\d+)?)/i);
+  return m ? Number(m[1]) : 0;
+}
+
+/**
+ * Ordina i modelli dal più consigliato: Flash stabile più recente, poi Flash-Lite, poi Pro;
+ * versioni "preview"/"exp" e alias "-latest" in coda.
+ */
+export function rankModels(models: ModelInfo[]): ModelInfo[] {
+  const score = (id: string) => {
+    let s = versionOf(id) * 10;
+    if (/flash-lite/i.test(id)) s += 50;
+    else if (/flash/i.test(id)) s += 100;
+    else if (/pro/i.test(id)) s += 30;
+    if (/latest/i.test(id)) s -= 5;
+    if (/preview|exp/i.test(id)) s -= 200;
+    if (/-\d{3}$|-\d{2}-\d{4}$/.test(id)) s -= 1; // versioni datate/numerate dopo l'alias stabile
+    return s;
+  };
+  const seen = new Set<string>();
+  return models
+    .filter((m) => /^gemini/i.test(m.id) && !NOT_SUITABLE.test(m.id) && !seen.has(m.id) && seen.add(m.id))
+    .sort((a, b) => score(b.id) - score(a.id) || a.id.localeCompare(b.id));
 }
 
 async function requestJson(url: string, init: RequestInit, opts: CallOptions): Promise<unknown> {
