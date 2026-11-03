@@ -8,18 +8,20 @@ import { CitedDocs } from './CitedDocs';
 import { resolveArticle } from '../lib/articles';
 
 /** Perché la risposta AI non è disponibile (o null se lo è). */
-export type AiUnavailable = 'offline' | 'nokey' | 'nonabilitato' | null;
+export type AiUnavailable = 'offline' | 'nokey' | 'nonabilitato' | 'spenta' | 'limite' | null;
 
 interface DbProps {
   results: LocalResult[];
   ai: AiState;
   unavailable: AiUnavailable;
+  /** messaggio sul limite di richieste AI raggiunto */
+  nota?: string;
   recordCount?: number;
   onRetry: () => void;
 }
 
 /** Sezione "Dal database": risposta AI basata sui blocchi + blocchi trovati. Mai mescolata con il web. */
-export function DbSection({ results, ai, unavailable, recordCount, onRetry }: DbProps) {
+export function DbSection({ results, ai, unavailable, nota, recordCount, onRetry }: DbProps) {
   const [showBlocks, setShowBlocks] = useState(false);
   const ids = new Set(results.map((r) => r.record.id));
   const titles = new Map(results.map((r) => [r.record.id, r.record.titolo]));
@@ -45,6 +47,12 @@ export function DbSection({ results, ai, unavailable, recordCount, onRetry }: Db
         </div>
       )}
 
+      {results.length > 0 && unavailable === 'spenta' && (
+        <p class="ai-hint" role="note">Risposta AI spenta: qui sotto i passaggi trovati nei documenti.</p>
+      )}
+      {results.length > 0 && unavailable === 'limite' && nota && (
+        <p class="notice small" role="note">{nota}</p>
+      )}
       {results.length > 0 && unavailable === 'offline' && (
         <p class="ai-hint" role="note">Risposta AI disponibile quando sei online.</p>
       )}

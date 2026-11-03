@@ -1,5 +1,6 @@
 import { DEFAULT_MODEL } from '../shared/gemini.ts';
 import type { Reserves } from '../shared/providers.ts';
+import type { Limiti } from './usage';
 import { getMeta, setMeta } from './db';
 import { useLiveQuery } from './live';
 
@@ -22,6 +23,14 @@ export interface Settings {
   usoPagamento: 'riserva' | 'prima';
   /** condividere anche le chiavi a pagamento con i soci (spendono il credito del programmatore) */
   condividiPagamento: boolean;
+  /** risposta AI alle domande accesa o spenta (soci e programmatore) */
+  usaAi: boolean;
+  /** programmatore: AI da usare per prima («auto» = ordine automatico) */
+  aiScelta: string;
+  /** programmatore: limiti di richieste AI da dare ai soci (vanno ai soci con la pubblicazione) */
+  limitiSoci: Limiti;
+  /** socio: limiti ricevuti dal programmatore */
+  limitiAi: Limiti;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -33,7 +42,11 @@ export const DEFAULT_SETTINGS: Settings = {
   documento: '',
   riserve: {},
   usoPagamento: 'riserva',
-  condividiPagamento: false
+  condividiPagamento: false,
+  usaAi: true,
+  aiScelta: 'auto',
+  limitiSoci: {},
+  limitiAi: {}
 };
 
 export async function getSettings(): Promise<Settings> {

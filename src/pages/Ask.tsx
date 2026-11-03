@@ -3,6 +3,8 @@ import { DbSection, WebSection, type AiUnavailable } from '../components/Answer'
 import { IconSend } from '../components/Icons';
 import { askDatabase, askWeb, type AiState } from '../lib/ai';
 import { hasAi } from '../lib/router';
+import { hasLimits, limitMessage, recordUse, usageStatus } from '../lib/usage';
+import { AiChoice, UsageLine, useUsage } from '../components/AiChoice';
 import { aiAllowed, getAccess, type Accesso } from '../lib/access';
 import { db } from '../lib/db';
 import { addToHistory, clearHistory, removeFromHistory, useHistory } from '../lib/history';
@@ -72,6 +74,11 @@ function AskMain({ online, access }: Props) {
   const [webAi, setWebAi] = useState<AiState>(saved.webAi);
   const [unavailable, setUnavailable] = useState<AiUnavailable>(saved.unavailable);
   const [busy, setBusy] = useState(false);
+  const [limitNote, setLimitNote] = useState('');
+  const [usageTick, setUsageTick] = useState(0);
+  // soci: raggiunto il limite di richieste l'AI resta spenta fino all'azzeramento
+  const usage = useUsage(usageTick);
+  const overLimit = access.ruolo === 'socio' && !!usage?.superato;
   const [error, setError] = useState('');
   const settings = useSettings();
   const history = useHistory();
@@ -109,10 +116,18 @@ function AskMain({ online, access }: Props) {
     inflight = ctrl;
     const s = await getSettings();
     const isOnline = navigator.onLine;
-    const why: AiUnavailable = !aiAllowed(await getAccess())
+    const acc = await getAccess();
+    // soci: limiti di richieste AI decisi dal programmatore (il programmatore non ha limiti)
+    const limited = acc?.ruolo === 'socio' && hasLimits(s.limitiAi);
+    const usage = limited ? await usageStatus(s.limitiAi) : null;
+    const why: AiUnavailable = !aiAllowed(acc)
       ? 'nonabilitato'
-      : !isOnline ? 'offline' : !hasAi(s) ? 'nokey' : null;
+      : !s.usaAi ? 'spenta'
+        : !isOnline ? 'offline' : !hasAi(s) ? 'nokey'
+          : usage?.superato ? 'limite' : null;
     setUnavailable(why);
+    setLimitNote(why === 'limite' && usage ? limitMessage(usage) : '');
+    let answered = false;
 
     const jobs: Promise<void>[] = [];
     if (only !== 'web') {
@@ -125,7 +140,11 @@ function AskMain({ online, access }: Props) {
           // cambio di servizio AI: il testo ricomincia con il nuovo servizio
           avviso = msg;
           if (!ctrl.signal.aborted) setAi('db', { status: 'loading', avviso });
-        }).then((v) => { if (!ctrl.signal.aborted) setAi('db', v); }));
+        }).then((v) => {
+          if (ctrl.signal.aborted) return;
+          setAi('db', v);
+          if (v.status === 'done') answered = true;
+        }));
       } else setAi('db', IDLE);
     }
     if (only !== 'db') {
@@ -134,11 +153,17 @@ function AskMain({ online, access }: Props) {
         jobs.push(askWeb(question, s, ctrl.signal).then((v) => {
           if (ctrl.signal.aborted) return;
           setAi('web', v);
+          if (v.status === 'done') answered = true;
           if (v.status === 'error' && v.disabledWeb) updateSettings({ webCheck: false });
         }));
       } else setAi('web', IDLE);
     }
     await Promise.all(jobs);
+    // si conta una richiesta per domanda, solo se l'AI ha risposto davvero
+    if (limited && answered) {
+      await recordUse();
+      setUsageTick((n) => n + 1);
+    }
     if (inflight === ctrl) inflight = null;
   };
 
@@ -224,8 +249,28 @@ function AskMain({ online, access }: Props) {
         </a>
       )}
 
-      {canAi && <div class="card card-tight">
+      {canAi && <div class="card card-tight ai-controls">
         <label class="switch">
+          <span>
+            Risposta AI
+            <br />
+            <span class="muted small">
+              {overLimit
+                ? 'Disattivata: limite di richieste raggiunto'
+                : settings.usaAi ? 'L\'AI risponde leggendo i passaggi trovati' : 'Spenta: vedi solo i passaggi trovati nei documenti'}
+            </span>
+          </span>
+          <input
+            type="checkbox"
+            role="switch"
+            checked={settings.usaAi && !overLimit}
+            disabled={overLimit}
+            onChange={(e) => updateSettings({ usaAi: (e.target as HTMLInputElement).checked })}
+          />
+        </label>
+        {settings.usaAi && access.ruolo === 'admin' && <AiChoice />}
+        {access.ruolo === 'socio' && (settings.usaAi || overLimit) && <UsageLine tick={usageTick} />}
+        {settings.usaAi && !overLimit && <label class="switch">
           <span>
             Verifica anche sul web
             <br />
@@ -244,7 +289,7 @@ function AskMain({ online, access }: Props) {
             disabled={!online}
             onChange={(e) => updateSettings({ webCheck: (e.target as HTMLInputElement).checked })}
           />
-        </label>
+        </label>}
       </div>}
 
       {error && <p class="notice notice-error" role="alert">{error}</p>}
@@ -259,6 +304,7 @@ function AskMain({ online, access }: Props) {
             results={results}
             ai={dbAi}
             unavailable={unavailable}
+            nota={limitNote}
             recordCount={recordCount}
             onRetry={() => runAi(asked, results, 'db')}
           />

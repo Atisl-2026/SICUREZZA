@@ -107,7 +107,7 @@ describe('analisi completa (Gemini simulato, archivio di esempio)', () => {
     const partial: string[] = [];
     const photo = { ...img, small: { mimeType: 'image/jpeg', data: 'BBBB' } };
     const r = await analyzePhotos(
-      [photo], 'corridoio piano terra', { apiKey: 'k', model: 'gemini-2.5-flash', autoCheck: true, webCheck: false, categorie: [], documento: '', riserve: {}, usoPagamento: 'riserva' as const, condividiPagamento: false },
+      [photo], 'corridoio piano terra', { apiKey: 'k', model: 'gemini-2.5-flash', autoCheck: true, webCheck: false, categorie: [], documento: '', riserve: {}, usoPagamento: 'riserva' as const, condividiPagamento: false, usaAi: true, aiScelta: 'auto', limitiSoci: {}, limitiAi: {} },
       new AbortController().signal, (s) => steps.push(s), (t, results) => partial.push(`${results.length}:${t}`)
     );
 
@@ -144,7 +144,7 @@ describe('analisi completa (Gemini simulato, archivio di esempio)', () => {
       return new Response(`data: ${JSON.stringify({ candidates: [{ content: { parts: [{ text: '### Cosa si vede\nUn estintore.' }] }, finishReason: 'STOP' }] })}\n\n`, { status: 200 });
     }));
     const { analyzePhotos } = await import('../src/lib/photo');
-    const r = await analyzePhotos([img], 'estintore', { apiKey: 'k', model: 'gemini-2.5-flash', autoCheck: true, webCheck: false, categorie: [], documento: '', riserve: {}, usoPagamento: 'riserva' as const, condividiPagamento: false }, new AbortController().signal);
+    const r = await analyzePhotos([img], 'estintore', { apiKey: 'k', model: 'gemini-2.5-flash', autoCheck: true, webCheck: false, categorie: [], documento: '', riserve: {}, usoPagamento: 'riserva' as const, condividiPagamento: false, usaAi: true, aiScelta: 'auto', limitiSoci: {}, limitiAi: {} }, new AbortController().signal);
     expect(bodies).toHaveLength(2);
     expect(r.query).toBe('estintore');
     expect(textOf(bodies[1])).not.toContain('DESCRIZIONE PRELIMINARE');
@@ -157,7 +157,7 @@ describe('analisi completa (Gemini simulato, archivio di esempio)', () => {
     const f = vi.fn(async () => new Response(JSON.stringify({ error: { code: 429, status: 'RESOURCE_EXHAUSTED' } }), { status: 429 }));
     vi.stubGlobal('fetch', f);
     const { analyzePhotos } = await import('../src/lib/photo');
-    await expect(analyzePhotos([img], '', { apiKey: 'k', model: 'm', autoCheck: true, webCheck: false, categorie: [], documento: '', riserve: {}, usoPagamento: 'riserva' as const, condividiPagamento: false }, new AbortController().signal))
+    await expect(analyzePhotos([img], '', { apiKey: 'k', model: 'm', autoCheck: true, webCheck: false, categorie: [], documento: '', riserve: {}, usoPagamento: 'riserva' as const, condividiPagamento: false, usaAi: true, aiScelta: 'auto', limitiSoci: {}, limitiAi: {} }, new AbortController().signal))
       .rejects.toMatchObject({ kind: 'quota' });
     // una sola richiesta di generazione (più l'elenco dei modelli, per provarne uno con quota propria)
     expect(f.mock.calls.filter((c) => /generateContent/i.test(String((c as unknown[])[0])))).toHaveLength(1);

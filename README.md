@@ -154,6 +154,21 @@ uscendo. La **verifica sul web** resta solo con Gemini. Le AI di riserva, soprat
 precise di Gemini: per questo la risposta dice sempre chi l'ha scritta.
 
 
+### Risposta AI accesa o spenta, scelta dell'AI, limiti per i soci
+
+- **Risposta AI** (scheda Chiedi, soci e programmatore): interruttore per fare la domanda con o senza AI. Spenta, si
+  vedono solo i passaggi trovati nei documenti (nessuna richiesta all'AI).
+- **AI da usare** (solo programmatore, scheda Chiedi): *Automatica* oppure un servizio preciso (Gemini, Groq, Mistral,
+  OpenRouter, Claude, ChatGPT), anche quelli a pagamento impostati «solo come riserva». Vale anche per le foto. Se l'AI
+  scelta non risponde, l'app prova da sola le altre e lo dice. Il programmatore non ha limiti di richieste.
+- **Limiti per i soci** (Impostazioni → Risposte AI per i soci): numero massimo di richieste AI **al giorno, alla
+  settimana e/o al mese** (vuoto = nessun limite). Una domanda con risposta AI o un'analisi foto = una richiesta; la sola
+  ricerca nei documenti non conta. Arrivano ai soci con **Invia i limiti ai soci (pubblica)**. Il socio vede
+  «Richieste AI: 3 di 20 oggi»; raggiunto il limite, la risposta AI si **disattiva da sola** con il messaggio
+  «Hai utilizzato l'AI 20 volte oggi: la risposta AI è disattivata fino a domani» (o fino a lunedì / al primo del mese).
+  L'app non ha un server: il conteggio è fatto sul telefono del socio (resta anche uscendo dall'accesso, ma chi cancella
+  i dati del browser lo azzera). Il tetto che nessuno può aggirare sono i limiti di spesa e le quote sui siti delle AI.
+
 ### AI a pagamento (Claude e ChatGPT)
 
 In *Impostazioni → AI a pagamento* il programmatore può aggiungere **Claude** (Anthropic) e **ChatGPT** (OpenAI).

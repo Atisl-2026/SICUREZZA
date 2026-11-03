@@ -1,4 +1,5 @@
 import { hasAi } from '../lib/router';
+import { LimitsEditor } from './LimitsEditor';
 import { useState } from 'preact/hooks';
 import { getAiEnvelope, type Accesso } from '../lib/access';
 import { useLiveQuery } from '../lib/live';
@@ -91,6 +92,10 @@ export function AdminSecurity({ access, online }: { access: Accesso; online: boo
         onSubmit={(pw) => run({ aiPassword: pw }, sharing
           ? 'Cambiare la password AI?\n\nChi aveva quella vecchia perderà le risposte AI finché non inserisce la nuova.'
           : 'Condividere le tue chiavi AI con chi conosce questa password?')}
+      />
+      <LimitsEditor
+        canSend={online && sharing}
+        onSend={() => run({ message: 'Limiti di richieste AI per i soci' }, 'Inviare ai soci i nuovi limiti di richieste AI?\n\nVerranno pubblicate anche le modifiche in attesa.')}
       />
       {sharing && (
         <button

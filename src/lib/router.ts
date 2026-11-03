@@ -142,7 +142,9 @@ export async function runAi(s: Settings, t: AiTask): Promise<AiAnswer> {
   if (!order.length) {
     throw new GeminiError('chiave', 'Nessuna AI configurata: inserisci la chiave Gemini o una AI di riserva nelle Impostazioni.');
   }
-  if (t.prefer && order.includes(t.prefer)) order = [t.prefer, ...order.filter((f) => f !== t.prefer)];
+  // programmatore: AI scelta a mano (vale anche per quelle a pagamento usate «solo come riserva»)
+  const prefer = t.prefer ?? (s.aiScelta && s.aiScelta !== 'auto' ? (s.aiScelta as Fornitore) : undefined);
+  if (prefer && order.includes(prefer)) order = [prefer, ...order.filter((f) => f !== prefer)];
   const now = Date.now();
   const fresh = order.filter((f) => !t.skip?.has(f) && (cooldown.get(f) ?? 0) <= now);
   // chi ha esaurito la quota da poco si prova per ultimo (il limite potrebbe essersi già azzerato)

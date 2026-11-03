@@ -81,7 +81,7 @@ describe('quando usare le AI a pagamento', () => {
   const s = (over: Partial<Settings>): Settings => ({
     autoCheck: true, webCheck: false, categorie: [], documento: '', apiKey: 'AIza', model: 'gemini-flash-latest',
     riserve: { groq: { apiKey: 'g' }, anthropic: { apiKey: 'sk-ant' }, openai: { apiKey: 'sk' } },
-    usoPagamento: 'riserva', condividiPagamento: false, ...over
+    usoPagamento: 'riserva', condividiPagamento: false, usaAi: true, aiScelta: 'auto', limitiSoci: {}, limitiAi: {}, ...over
   });
   it('per default dopo le gratuite; «sempre per prime» le mette in testa', async () => {
     const { availableAi } = await import('../src/lib/router');

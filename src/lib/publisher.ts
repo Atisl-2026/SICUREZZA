@@ -1,4 +1,5 @@
 import { hasAi } from './router';
+import { hasLimits } from './usage';
 import { configuredPaid, configuredReserves } from '../shared/providers.ts';
 import { deriveKey, encryptJson, type DerivedKey, type Envelope } from '../shared/crypto.ts';
 import { commitFiles, readRepoJson } from '../shared/github.ts';
@@ -113,6 +114,7 @@ export async function publish(opts: PublishOptions = {}): Promise<PublishResult>
       const riserve = Object.fromEntries(ids.map((id) => [id, settings.riserve[id]!]));
       if (Object.keys(riserve).length) share.riserve = riserve;
       if (settings.condividiPagamento && configuredPaid(settings.riserve).length) share.usoPagamento = settings.usoPagamento;
+      if (hasLimits(settings.limitiSoci)) share.limiti = settings.limitiSoci;
       ai = await encryptJson(share, aiKey);
     } else {
       // condivisione fatta da un altro telefono: la busta resta com'è

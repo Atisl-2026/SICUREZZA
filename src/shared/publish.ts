@@ -27,6 +27,8 @@ export interface AiShare {
   riserve?: Reserves;
   /** AI a pagamento condivise: quando usarle */
   usoPagamento?: 'riserva' | 'prima';
+  /** limiti di richieste AI per i soci */
+  limiti?: { giorno?: number; settimana?: number; mese?: number };
 }
 
 export interface SociPayload {

@@ -738,3 +738,14 @@ a.art-ref:hover { text-decoration: underline; }
 .paid-use legend { padding: 0 4px; }
 .paid-share { margin-top: 10px; }
 .reserve a { overflow-wrap: anywhere; }
+
+/* scelta dell'AI e limiti di richieste */
+.ai-controls .switch + .switch, .ai-controls .ai-choice + .switch, .ai-controls .usage-line + .switch { border-top: 1px solid var(--border); }
+.ai-choice { margin: 6px 0 8px; }
+.ai-choice select { width: 100%; }
+.usage-line { margin: 4px 0 8px; color: var(--text-muted); }
+.usage-line.is-over { color: var(--danger, #b3261e); font-weight: 600; }
+.limits { margin: 12px 0; }
+.limits-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.limits-row input { width: 100%; }
+.usage-over { margin: 6px 0 8px; }

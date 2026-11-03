@@ -7,7 +7,10 @@ import { articlesByRecord, passageInfo, resolveArticle } from '../lib/articles';
 import { headingText } from '../shared/articles.ts';
 import { analyzePhotos, asGeminiError, MAX_PHOTOS, preparePhoto, type PhotoAnalysis, type PhotoStep, type PreparedPhoto } from '../lib/photo';
 import { getSettings } from '../lib/settings';
-import { citedIds, splitCitations, type GeminiError } from '../shared/gemini.ts';
+import { getAccess } from '../lib/access';
+import { hasLimits, limitMessage, recordUse, usageStatus } from '../lib/usage';
+import { UsageLine } from '../components/AiChoice';
+import { citedIds, GeminiError, splitCitations } from '../shared/gemini.ts';
 import { BRAND } from '../branding';
 import type { LocalResult } from '../lib/search';
 
@@ -78,6 +81,7 @@ export function PhotoPage({ online }: { online: boolean }) {
   const [error, setError] = useState(saved.error);
   const [partial, setPartial] = useState(saved.partial);
   const [avviso, setAvviso] = useState(saved.avviso);
+  const [usageTick, setUsageTick] = useState(0);
   const [prepError, setPrepError] = useState('');
   const [preparing, setPreparing] = useState(false);
   const [showBlocks, setShowBlocks] = useState(false);
@@ -139,6 +143,16 @@ export function PhotoPage({ online }: { online: boolean }) {
     inflight?.abort();
     const ctrl = new AbortController();
     inflight = ctrl;
+    // soci: limiti di richieste AI decisi dal programmatore (un'analisi = una richiesta)
+    const s = await getSettings();
+    const limited = (await getAccess())?.ruolo === 'socio' && hasLimits(s.limitiAi);
+    if (limited) {
+      const u = await usageStatus(s.limitiAi);
+      if (u.superato) {
+        patch({ result: null, partial: null, avviso: '', step: null, error: new GeminiError('quota', limitMessage(u)) });
+        return;
+      }
+    }
     patch({ result: null, error: null, partial: null, avviso: '', step: 'descrizione' });
     let scrolled = false;
     const scroll = () => {
@@ -160,6 +174,7 @@ export function PhotoPage({ online }: { online: boolean }) {
       );
       if (!ctrl.signal.aborted) {
         patch({ result: r, partial: null, step: null });
+        if (limited) { await recordUse(); setUsageTick((n) => n + 1); }
         scroll();
       }
     } catch (e) {
@@ -250,6 +265,7 @@ export function PhotoPage({ online }: { online: boolean }) {
           {busy ? 'Analisi in corso…' : 'Analizza'}
         </button>
         {!online && <p class="muted small">L'analisi delle foto richiede la connessione.</p>}
+        <UsageLine tick={usageTick} />
       </div>
 
       {busy && avviso && <p class="ai-switch small" role="status">{avviso}</p>}

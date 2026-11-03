@@ -114,14 +114,14 @@ export async function refreshAiShare(a: Accesso, env: Envelope | undefined): Pro
   if (env && keyMatches(a.aiKey, env)) {
     try {
       const share = await decryptJson<AiShare>(env, a.aiKey);
-      await updateSettings({ apiKey: share.apiKey, model: share.model, riserve: share.riserve ?? {}, usoPagamento: share.usoPagamento ?? 'riserva' });
+      await updateSettings({ apiKey: share.apiKey, model: share.model, riserve: share.riserve ?? {}, usoPagamento: share.usoPagamento ?? 'riserva', limitiAi: share.limiti ?? {} });
       return null;
     } catch {
       /* chiave non più valida */
     }
   }
   await setAccess({ ...a, aiKey: undefined });
-  await updateSettings({ apiKey: '', webCheck: false, riserve: {} });
+  await updateSettings({ apiKey: '', webCheck: false, riserve: {}, limitiAi: {}, aiScelta: 'auto' });
   return env
     ? 'La password AI è cambiata: chiedi quella nuova al programmatore.'
     : 'Le risposte AI non sono più condivise.';
@@ -134,7 +134,7 @@ export async function loginDemo() {
   await forgetCategories();
   await replaceRecords(records, versione);
   await setAiEnvelope(undefined);
-  await updateSettings({ apiKey: '', webCheck: false, riserve: {} });
+  await updateSettings({ apiKey: '', webCheck: false, riserve: {}, limitiAi: {}, aiScelta: 'auto' });
   await setAccess({ ruolo: 'demo' });
 }
 
@@ -145,7 +145,7 @@ export async function loginSocio(password: string) {
   await replaceRecords(payload.records, file.versione);
   await setAiEnvelope(payload.ai);
   await receiveCategories(payload.categorie);
-  await updateSettings({ apiKey: '', webCheck: false, riserve: {} });
+  await updateSettings({ apiKey: '', webCheck: false, riserve: {}, limitiAi: {}, aiScelta: 'auto' });
   await setAccess({ ruolo: 'socio', sociKey });
 }
 
@@ -205,14 +205,14 @@ export async function unlockAi(password: string) {
   if (!env) throw new Error('Il programmatore non ha condiviso le risposte AI.');
   const aiKey = await deriveKeyFor(password, env);
   const share = await decryptJson<AiShare>(env, aiKey); // WrongPasswordError se sbagliata
-  await updateSettings({ apiKey: share.apiKey, model: share.model, riserve: share.riserve ?? {}, usoPagamento: share.usoPagamento ?? 'riserva' });
+  await updateSettings({ apiKey: share.apiKey, model: share.model, riserve: share.riserve ?? {}, usoPagamento: share.usoPagamento ?? 'riserva', limitiAi: share.limiti ?? {} });
   await setAccess({ ...a, aiKey });
 }
 
 export async function lockAi() {
   const a = await getAccess();
   if (a) await setAccess({ ...a, aiKey: undefined });
-  await updateSettings({ apiKey: '', webCheck: false, riserve: {} });
+  await updateSettings({ apiKey: '', webCheck: false, riserve: {}, limitiAi: {}, aiScelta: 'auto' });
 }
 
 /** Esci: cancella dal dispositivo contenuti, indice, chiavi, cronologia. */
@@ -220,7 +220,7 @@ export async function logout() {
   await clearAll();
   await forgetCategories();
   await db.meta.bulkDelete([KEY, 'aiEnvelope', 'indice', 'cronologia', 'versione', 'aggiornato_il']);
-  await updateSettings({ apiKey: '', webCheck: false, riserve: {} });
+  await updateSettings({ apiKey: '', webCheck: false, riserve: {}, limitiAi: {}, aiScelta: 'auto' });
 }
 
 /**
