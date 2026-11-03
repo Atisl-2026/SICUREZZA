@@ -2,6 +2,7 @@ import { useEffect, useState } from 'preact/hooks';
 import { InstallCard } from '../components/InstallCard';
 import { GeminiSettings } from '../components/GeminiSettings';
 import { ReserveSettings } from '../components/ReserveSettings';
+import { PaidSettings } from '../components/PaidSettings';
 import { AdminSecurity } from '../components/AdminSecurity';
 import { getAiEnvelope, lockAi, logout, RUOLO_LABEL, unlockAi, type Accesso } from '../lib/access';
 import { requestPersistence } from '../lib/db';
@@ -62,6 +63,7 @@ export function SettingsPage({ online, access }: Props) {
       {access.ruolo === 'socio' && <AiUnlock access={access} />}
       {access.ruolo === 'admin' && <GeminiSettings online={online} />}
       {access.ruolo === 'admin' && <ReserveSettings online={online} />}
+      {access.ruolo === 'admin' && <PaidSettings online={online} />}
       {access.ruolo === 'admin' && <AdminSecurity access={access} online={online} />}
 
       <div class="card">

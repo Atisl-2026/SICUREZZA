@@ -166,7 +166,7 @@ describe('pubblicazione dal telefono (GitHub simulato)', () => {
     const { checkRemote, applyRemote } = await import('../src/lib/remote');
     await loginAdmin('github_pat_OK', PW, 'Atisl-2026/SICUREZZA');
     await expect(publish({ aiPassword: 'password-ai-1' })).rejects.toThrow(/chiave Gemini o una AI di riserva/);
-    await updateSettings({ apiKey: 'AIzaMIA', model: 'gemini-2.5-flash', riserve: { groq: { apiKey: 'gsk_MIA' }, mistral: { apiKey: '  ' } } });
+    await updateSettings({ apiKey: 'AIzaMIA', model: 'gemini-2.5-flash', riserve: { groq: { apiKey: 'gsk_MIA' }, mistral: { apiKey: '  ' }, anthropic: { apiKey: 'sk-ant-MIA' } } });
     await publish({ aiPassword: 'password-ai-1' });
     expect(repo.files['data/soci.json']).not.toContain('AIzaMIA');
     expect(repo.files['data/soci.json']).not.toContain('gsk_MIA');
@@ -177,6 +177,7 @@ describe('pubblicazione dal telefono (GitHub simulato)', () => {
     await unlockAi('password-ai-1');
     expect((await getSettings()).apiKey).toBe('AIzaMIA');
     expect((await getSettings()).riserve).toEqual({ groq: { apiKey: 'gsk_MIA' } }); // le riserve arrivano ai soci
+    // le chiavi a pagamento no, se il programmatore non ha scelto di condividerle
 
     // il programmatore smette di condividere
     await logout();

@@ -17,7 +17,7 @@ export function ReserveSettings({ online }: { online: boolean }) {
       <h3>AI gratuite di riserva</h3>
       <p class="muted small">
         Se Gemini non risponde (limite gratuito raggiunto, sovraccarico, troppa lentezza) l'app passa da sola alla
-        prossima AI configurata qui, nell'ordine: <strong>Gemini → Groq → Mistral → OpenRouter</strong>. Sotto ogni
+        prossima AI configurata qui, nell'ordine: <strong>Gemini → Groq → Mistral → OpenRouter</strong> (e poi Claude e ChatGPT, se le hai attivate qui sotto). Sotto ogni
         risposta è indicata l'AI che l'ha scritta. Tutte hanno un piano gratuito: servono solo una registrazione e una chiave.
       </p>
       <p class="small">

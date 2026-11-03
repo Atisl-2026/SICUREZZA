@@ -100,7 +100,7 @@ export function DbSection({ results, ai, unavailable, recordCount, onRetry }: Db
           <CitedDocs cited={cited} results={results} title="Documenti citati" />
           {cited.length === 0 && <p class="muted small">La risposta non cita record specifici: verifica nei blocchi qui sotto.</p>}
           <p class="ai-disclaimer">
-            Risposta generata da {ai.answer.servizio ?? 'Gemini'}{ai.answer.servizio && ai.answer.servizio !== 'Gemini' && ai.answer.modello ? ` (${ai.answer.modello}, AI di riserva)` : ''} sui contenuti del database: verifica sempre le fonti.
+            Risposta generata da {ai.answer.servizio ?? 'Gemini'}{ai.answer.servizio && ai.answer.servizio !== 'Gemini' && ai.answer.modello ? ` (${ai.answer.modello}, ${['Claude', 'ChatGPT'].includes(ai.answer.servizio) ? 'a pagamento' : 'AI di riserva'})` : ''} sui contenuti del database: verifica sempre le fonti.
           </p>
         </article>
       )}

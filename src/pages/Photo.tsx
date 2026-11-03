@@ -316,7 +316,7 @@ export function PhotoPage({ online }: { online: boolean }) {
               <p class="notice small">Nell'archivio non ci sono schede pertinenti: le criticità indicate non hanno riferimenti normativi. Carica la normativa specifica (es. ponteggi) per avere i riferimenti.</p>
             )}
             <p class="ai-disclaimer">
-              Analisi automatica di supporto{result.answer.servizio && result.answer.servizio !== 'Gemini' ? ` (fatta da ${result.answer.servizio}${result.answer.modello ? `, ${result.answer.modello}` : ''}, AI di riserva)` : ''}: può non vedere tutto o sbagliare. Non sostituisce il sopralluogo né la valutazione del tecnico.
+              Analisi automatica di supporto{result.answer.servizio && result.answer.servizio !== 'Gemini' ? ` (fatta da ${result.answer.servizio}${result.answer.modello ? `, ${result.answer.modello}` : ''}, ${['Claude', 'ChatGPT'].includes(result.answer.servizio) ? 'a pagamento' : 'AI di riserva'})` : ''}: può non vedere tutto o sbagliare. Non sostituisce il sopralluogo né la valutazione del tecnico.
             </p>
             <div class="btn-row photo-actions">
               <button type="button" class="btn" onClick={copy}>Copia / condividi il testo</button>

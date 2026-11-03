@@ -18,6 +18,10 @@ export interface Settings {
   documento: string;
   /** AI gratuite di riserva (Groq, Mistral, OpenRouter): chiavi salvate solo su questo dispositivo. */
   riserve: Reserves;
+  /** AI a pagamento (Claude, ChatGPT): solo se le gratuite non rispondono, oppure sempre per prime */
+  usoPagamento: 'riserva' | 'prima';
+  /** condividere anche le chiavi a pagamento con i soci (spendono il credito del programmatore) */
+  condividiPagamento: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -27,7 +31,9 @@ export const DEFAULT_SETTINGS: Settings = {
   model: DEFAULT_MODEL,
   categorie: [],
   documento: '',
-  riserve: {}
+  riserve: {},
+  usoPagamento: 'riserva',
+  condividiPagamento: false
 };
 
 export async function getSettings(): Promise<Settings> {

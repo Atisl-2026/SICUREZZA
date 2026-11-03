@@ -114,7 +114,7 @@ export async function refreshAiShare(a: Accesso, env: Envelope | undefined): Pro
   if (env && keyMatches(a.aiKey, env)) {
     try {
       const share = await decryptJson<AiShare>(env, a.aiKey);
-      await updateSettings({ apiKey: share.apiKey, model: share.model, riserve: share.riserve ?? {} });
+      await updateSettings({ apiKey: share.apiKey, model: share.model, riserve: share.riserve ?? {}, usoPagamento: share.usoPagamento ?? 'riserva' });
       return null;
     } catch {
       /* chiave non più valida */
@@ -205,7 +205,7 @@ export async function unlockAi(password: string) {
   if (!env) throw new Error('Il programmatore non ha condiviso le risposte AI.');
   const aiKey = await deriveKeyFor(password, env);
   const share = await decryptJson<AiShare>(env, aiKey); // WrongPasswordError se sbagliata
-  await updateSettings({ apiKey: share.apiKey, model: share.model, riserve: share.riserve ?? {} });
+  await updateSettings({ apiKey: share.apiKey, model: share.model, riserve: share.riserve ?? {}, usoPagamento: share.usoPagamento ?? 'riserva' });
   await setAccess({ ...a, aiKey });
 }
 

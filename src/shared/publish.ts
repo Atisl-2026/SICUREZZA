@@ -25,6 +25,8 @@ export interface AiShare {
   model: string;
   /** AI gratuite di riserva (le versioni precedenti dell'app ignorano il campo) */
   riserve?: Reserves;
+  /** AI a pagamento condivise: quando usarle */
+  usoPagamento?: 'riserva' | 'prima';
 }
 
 export interface SociPayload {

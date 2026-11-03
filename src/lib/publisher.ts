@@ -1,5 +1,5 @@
 import { hasAi } from './router';
-import { configuredReserves } from '../shared/providers.ts';
+import { configuredPaid, configuredReserves } from '../shared/providers.ts';
 import { deriveKey, encryptJson, type DerivedKey, type Envelope } from '../shared/crypto.ts';
 import { commitFiles, readRepoJson } from '../shared/github.ts';
 import { compareVersions } from '../shared/normalize.ts';
@@ -108,8 +108,11 @@ export async function publish(opts: PublishOptions = {}): Promise<PublishResult>
     if (aiKey && hasAi(settings)) {
       // ricifrata ogni volta: così chiavi o modello aggiornati arrivano anche ai soci
       const share: AiShare = { apiKey: settings.apiKey.trim(), model: settings.model };
-      const riserve = Object.fromEntries(configuredReserves(settings.riserve).map((id) => [id, settings.riserve[id]!]));
+      // le chiavi a pagamento (Claude, ChatGPT) vanno ai soci solo se il programmatore lo ha scelto
+      const ids = [...configuredReserves(settings.riserve), ...(settings.condividiPagamento ? configuredPaid(settings.riserve) : [])];
+      const riserve = Object.fromEntries(ids.map((id) => [id, settings.riserve[id]!]));
       if (Object.keys(riserve).length) share.riserve = riserve;
+      if (settings.condividiPagamento && configuredPaid(settings.riserve).length) share.usoPagamento = settings.usoPagamento;
       ai = await encryptJson(share, aiKey);
     } else {
       // condivisione fatta da un altro telefono: la busta resta com'è

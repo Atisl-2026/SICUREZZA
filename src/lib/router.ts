@@ -5,7 +5,7 @@ import {
   callGemini, cleanModelName, GeminiError, streamGemini, type GeminiAnswer, type GeminiRequest, type ThinkingLevel
 } from '../shared/gemini.ts';
 import {
-  callChat, configuredReserves, hasImages, listChatModels, pickModel, PROVIDERS, type ChatModel, type ProviderId
+  callChat, configuredPaid, configuredReserves, hasImages, isPaid, listChatModels, pickModel, PROVIDERS, type ChatModel, type ProviderId
 } from '../shared/providers.ts';
 import { withModelFallback } from './model';
 import type { Settings } from './settings';
@@ -38,7 +38,10 @@ export interface AiAnswer extends GeminiAnswer {
 
 /** Servizi utilizzabili con le chiavi presenti, nell'ordine in cui si provano. */
 export function availableAi(s: Settings): Fornitore[] {
-  return [...(s.apiKey.trim() ? (['gemini'] as Fornitore[]) : []), ...configuredReserves(s.riserve)];
+  const free: Fornitore[] = [...(s.apiKey.trim() ? (['gemini'] as Fornitore[]) : []), ...configuredReserves(s.riserve)];
+  const paid: Fornitore[] = configuredPaid(s.riserve);
+  // a pagamento: per prime (massima qualità) o solo quando le gratuite non rispondono (si spende meno)
+  return s.usoPagamento === 'prima' ? [...paid, ...free] : [...free, ...paid];
 }
 
 export function hasAi(s: Settings): boolean {
@@ -94,13 +97,28 @@ async function viaGemini(s: Settings, t: AiTask): Promise<AiAnswer> {
   return { ...answer, fornitore: 'gemini', servizio: 'Gemini', modello: used };
 }
 
+async function viaClaude(s: Settings, t: AiTask): Promise<AiAnswer> {
+  const key = s.riserve.anthropic!;
+  const { callClaude, DEFAULT_CLAUDE_MODEL } = await import('./claude');
+  const answer = await callClaude(t.request, {
+    apiKey: key.apiKey,
+    model: key.model?.trim() || DEFAULT_CLAUDE_MODEL,
+    timeoutMs: Math.max(t.timeoutMs, 60000),
+    signal: t.signal,
+    thinking: t.thinking,
+    onText: t.onText
+  });
+  return { ...answer, fornitore: 'anthropic' };
+}
+
 async function viaReserve(p: ProviderId, s: Settings, t: AiTask): Promise<AiAnswer> {
+  if (p === 'anthropic') return viaClaude(s, t);
   const key = s.riserve[p]!;
   const vision = hasImages(t.request);
   const auto = async () => {
     const m = pickModel(p, await chatModels(p, key.apiKey), vision);
     if (!m) {
-      throw new GeminiError('non-supportato', `${PROVIDERS[p].nome}: nessun modello gratuito${vision ? ' che legga le foto' : ''} disponibile.`);
+      throw new GeminiError('non-supportato', `${PROVIDERS[p].nome}: nessun modello${isPaid(p) ? '' : ' gratuito'}${vision ? ' che legga le foto' : ''} disponibile.`);
     }
     return m;
   };

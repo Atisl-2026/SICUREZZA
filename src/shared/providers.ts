@@ -1,12 +1,13 @@
-// AI gratuite di riserva (Groq, Mistral, OpenRouter): tutte usano il formato "chat completions"
-// compatibile OpenAI. L'app costruisce le richieste nel formato Gemini (GeminiRequest) e qui
+// AI di riserva: gratuite (Groq, Mistral, OpenRouter) e a pagamento (ChatGPT di OpenAI) usano il
+// formato "chat completions"; Claude (Anthropic, a pagamento) passa dalla libreria ufficiale (lib/claude.ts).
+// Formato "chat completions" compatibile OpenAI. L'app costruisce le richieste nel formato Gemini (GeminiRequest) e qui
 // le converte; le risposte tornano come GeminiAnswer, così il resto dell'app non cambia.
 // Funzioni pure + fetch: testate in tests/providers.test.ts.
 import {
   GeminiError, parseQuota, quotaMessage, schemaInstruction, type GeminiAnswer, type GeminiRequest
 } from './gemini.ts';
 
-export type ProviderId = 'groq' | 'mistral' | 'openrouter';
+export type ProviderId = 'groq' | 'mistral' | 'openrouter' | 'openai' | 'anthropic';
 
 export interface ProviderInfo {
   id: ProviderId;
@@ -41,6 +42,24 @@ export const PROVIDERS: Record<ProviderId, ProviderInfo> = {
     piano: 'piano gratuito «Experiment» (serve verificare il numero di telefono); limiti di velocità',
     privacy: 'sul piano gratuito i dati possono essere usati per migliorare i modelli'
   },
+  openai: {
+    id: 'openai',
+    nome: 'ChatGPT',
+    base: 'https://api.openai.com/v1',
+    keyUrl: 'https://platform.openai.com/api-keys',
+    keyHint: 'sk-…',
+    piano: 'a pagamento, credito prepagato (platform.openai.com → Billing); nessun piano gratuito per le app',
+    privacy: 'i dati inviati con la chiave API non vengono usati per addestrare i modelli (condizioni di OpenAI)'
+  },
+  anthropic: {
+    id: 'anthropic',
+    nome: 'Claude',
+    base: 'https://api.anthropic.com',
+    keyUrl: 'https://console.anthropic.com/settings/keys',
+    keyHint: 'sk-ant-…',
+    piano: 'a pagamento, credito prepagato (console.anthropic.com → Billing); nessun piano gratuito per le app',
+    privacy: 'i dati inviati con la chiave API non vengono usati per addestrare i modelli (condizioni di Anthropic)'
+  },
   openrouter: {
     id: 'openrouter',
     nome: 'OpenRouter',
@@ -52,8 +71,11 @@ export const PROVIDERS: Record<ProviderId, ProviderInfo> = {
   }
 };
 
-/** Ordine in cui si provano le riserve: prima la più veloce. */
+/** Ordine in cui si provano le riserve gratuite: prima la più veloce. */
 export const PROVIDER_ORDER: ProviderId[] = ['groq', 'mistral', 'openrouter'];
+/** AI a pagamento. */
+export const PAID_ORDER: ProviderId[] = ['anthropic', 'openai'];
+export const isPaid = (p: ProviderId) => PAID_ORDER.includes(p);
 
 export interface ProviderKey {
   apiKey: string;
@@ -67,6 +89,10 @@ export function configuredReserves(r: Reserves | undefined): ProviderId[] {
   return PROVIDER_ORDER.filter((id) => !!r?.[id]?.apiKey?.trim());
 }
 
+export function configuredPaid(r: Reserves | undefined): ProviderId[] {
+  return PAID_ORDER.filter((id) => !!r?.[id]?.apiKey?.trim());
+}
+
 // ============================================================ richiesta
 
 type ChatContent = string | ({ type: 'text'; text: string } | { type: 'image_url'; image_url: { url: string } })[];
@@ -76,11 +102,13 @@ export interface ChatBody {
   messages: { role: 'system' | 'user' | 'assistant'; content: ChatContent }[];
   temperature?: number;
   max_tokens?: number;
+  /** OpenAI: i modelli recenti vogliono questo al posto di max_tokens */
+  max_completion_tokens?: number;
   stream?: boolean;
 }
 
 /** GeminiRequest → corpo "chat completions". */
-export function toChatBody(req: GeminiRequest, model: string, stream: boolean): ChatBody {
+export function toChatBody(req: GeminiRequest, model: string, stream: boolean, p?: ProviderId): ChatBody {
   const gc = (req.generationConfig ?? {}) as { temperature?: number; maxOutputTokens?: number; responseSchema?: unknown; responseMimeType?: string };
   const system = [
     ...(req.systemInstruction?.parts ?? []).map((p) => p.text),
@@ -98,6 +126,10 @@ export function toChatBody(req: GeminiRequest, model: string, stream: boolean): 
       role: c.role === 'model' ? 'assistant' : 'user',
       content: onlyText ? parts.map((p) => (p as { text: string }).text).join('\n\n') : parts
     });
+  }
+  if (p === 'openai') {
+    // i modelli recenti di OpenAI (GPT-5, serie «o») non accettano max_tokens né una temperatura diversa da quella base
+    return { model, messages, max_completion_tokens: Math.max(gc.maxOutputTokens ?? 0, 16000), ...(stream ? { stream: true } : {}) };
   }
   return {
     model,
@@ -142,6 +174,9 @@ export function classifyChatError(p: ProviderId, status: number, body: unknown):
   }
   if (/key limit exceeded|credit limit/i.test(msg)) {
     return new GeminiError('quota', `${nome}: la chiave ha un limite di spesa a 0 $ e blocca anche i modelli gratuiti. Su ${p === 'openrouter' ? 'openrouter.ai → Keys' : 'il sito del servizio'} modifica la chiave e lascia vuoto il limite di credito («Credit limit»), oppure creane una nuova senza limite.`, status, { periodo: 'giorno' });
+  }
+  if (/insufficient_quota|exceeded your current quota|billing|credit balance/i.test(msg)) {
+    return new GeminiError('quota', `${nome}: credito esaurito o assente. Ricarica il credito prepagato${p === 'openai' ? ' su platform.openai.com → Billing' : ''}.`, status, { periodo: 'giorno' });
   }
   if (status === 402) return new GeminiError('quota', `${nome}: credito o limite gratuito esaurito.`, status);
   if (status === 429) {
@@ -207,7 +242,7 @@ export async function callChat(p: ProviderId, req: GeminiRequest, opts: ChatOpti
       res = await doFetch(`${PROVIDERS[p].base}/chat/completions`, {
         method: 'POST',
         headers: headers(p, opts.apiKey),
-        body: JSON.stringify(toChatBody(req, opts.model, stream)),
+        body: JSON.stringify(toChatBody(req, opts.model, stream, p)),
         signal: ctrl.signal
       });
     } catch {
@@ -297,12 +332,18 @@ const VISION_NAME = /llama-4|vision|scout|maverick|pixtral|qwen.*vl|gemma-3|llav
 const NOT_CHAT: Record<ProviderId, RegExp> = {
   groq: /whisper|tts|guard|playai|orpheus|compound|distil|embed|allam/i,
   mistral: /embed|ocr|moderation|codestral|devstral|voxtral|magistral|saba|ministral-3b/i,
-  openrouter: /thinking|-r1\b|r1-|:extended|embed|audio|image-gen|router/i
+  openrouter: /thinking|-r1\b|r1-|:extended|embed|audio|image-gen|router/i,
+  // solo modelli di chat; esclusi audio, immagini, ricerca, i «pro» (molto costosi) e i vecchi
+  openai: /^(?!gpt-|chatgpt-|o\d)|audio|realtime|tts|transcribe|whisper|dall-e|image|embedding|moderation|search|instruct|codex|computer|-pro\b|deep-research|^o1|gpt-3\.5|^gpt-4(?!o|\.1)/i,
+  anthropic: /^(?!claude-)/i
 };
 // preferenze (dal migliore): modelli grandi e capaci in italiano
 const PREFER: Record<ProviderId, RegExp[]> = {
   groq: [/llama-4-maverick/i, /llama-4-scout/i, /gpt-oss-120b/i, /kimi-k2/i, /llama-3\.3-70b/i, /qwen/i, /llama/i],
   mistral: [/^mistral-medium-latest$/i, /^mistral-large-latest$/i, /^mistral-small-latest$/i, /^pixtral-large-latest$/i, /medium/i, /large/i, /small/i],
+  // il modello principale più recente (GPT-5.x), poi i precedenti; i «mini» solo se non c'è altro
+  openai: [/^gpt-5(\.\d+)?$/i, /^gpt-5(\.\d+)?-chat/i, /^gpt-4\.1$/i, /^gpt-4o$/i, /^gpt-5.*mini/i, /mini/i],
+  anthropic: [/opus/i],
   openrouter: [/google\/gemini/i, /meta-llama\/llama-4-maverick/i, /qwen.*vl.*(72|32)b/i, /google\/gemma-3-27b/i, /mistral-small/i, /meta-llama\/llama-4/i, /deepseek-(chat|v3)/i, /llama-3\.3-70b/i, /qwen/i]
 };
 
@@ -328,6 +369,8 @@ export async function listChatModels(p: ProviderId, apiKey: string, fetchImpl: t
     .map((m) => ({
       id: m.id,
       vision: m.capabilities?.vision ?? (m.architecture?.input_modalities?.includes('image') ?? (/image/.test(m.architecture?.modality ?? '') || VISION_NAME.test(m.id))),
+      // OpenAI: i modelli di chat recenti leggono le immagini
+      ...(p === 'openai' ? { vision: true } : {}),
       free: p !== 'openrouter' || m.id.endsWith(':free') || (Number(m.pricing?.prompt ?? 1) === 0 && Number(m.pricing?.completion ?? 1) === 0),
       contesto: m.context_window ?? m.context_length
     }));

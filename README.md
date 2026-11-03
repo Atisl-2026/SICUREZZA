@@ -153,6 +153,35 @@ Le chiavi seguono le stesse regole di quella di Gemini: solo sul dispositivo, ma
 uscendo. La **verifica sul web** resta solo con Gemini. Le AI di riserva, soprattutto sulle foto, possono essere meno
 precise di Gemini: per questo la risposta dice sempre chi l'ha scritta.
 
+
+### AI a pagamento (Claude e ChatGPT)
+
+In *Impostazioni → AI a pagamento* il programmatore può aggiungere **Claude** (Anthropic) e **ChatGPT** (OpenAI).
+Non hanno piani gratuiti per le app: si paga a consumo con un **credito prepagato** (nessun abbonamento).
+
+1. Crea la chiave e carica un piccolo credito (es. 5–10 $): Claude su
+   [console.anthropic.com](https://console.anthropic.com/settings/keys), ChatGPT su
+   [platform.openai.com](https://platform.openai.com/api-keys).
+2. Imposta un **limite di spesa mensile** sul sito del servizio (link nel riquadro).
+3. Incolla la chiave e tocca **Verifica** (non consuma credito). Per Claude scegli il modello: il riquadro mostra il
+   costo indicativo di una domanda e di un'analisi foto.
+
+| Modello Claude | Prezzo (milione di token, ingresso / uscita) | Una domanda | Un'analisi foto |
+|---|---|---|---|
+| Opus 5.5 (consigliato) | 4 $ / 20 $ | ≈ 2–3 centesimi | ≈ 6–8 centesimi |
+| Sonnet 5.5 | 2 $ / 10 $ | ≈ 1–1,5 centesimi | ≈ 3–4 centesimi |
+| Haiku 5.5 (economico) | 0,10 $ / 0,50 $ | ≈ 0,1 centesimi | ≈ 0,2–0,3 centesimi |
+| Fable 5.1 (il più capace) | 10 $ / 50 $ | ≈ 6–8 centesimi | ≈ 15–20 centesimi |
+
+Per ChatGPT l'app sceglie da sola il modello principale più recente (puoi cambiarlo dopo la verifica).
+
+**Quando usarle**: *Solo se le AI gratuite non rispondono* (predefinito: si spende solo quando Gemini e le riserve
+gratuite falliscono) oppure *Sempre per prime* (massima qualità, ogni domanda si paga). Sotto ogni risposta è scritto
+chi l'ha scritta («Claude, a pagamento»). Con Claude è attivo il **ripiego automatico**: se Claude rifiuta una
+richiesta per i suoi filtri di sicurezza, il server la passa al modello che Anthropic consiglia per quel caso.
+
+Le chiavi a pagamento **non** vanno ai soci, a meno di attivare *Condividi anche con i soci* (le loro domande usano il
+tuo credito) e poi pubblicare.
 ---
 
 ## 3. Come si usa
