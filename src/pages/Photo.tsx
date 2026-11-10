@@ -7,7 +7,7 @@ import { articlesByRecord, passageInfo, resolveArticle } from '../lib/articles';
 import { headingText } from '../shared/articles.ts';
 import { analyzePhotos, asGeminiError, MAX_PHOTOS, preparePhoto, type PhotoAnalysis, type PhotoStep, type PreparedPhoto } from '../lib/photo';
 import { getSettings } from '../lib/settings';
-import { getAccess } from '../lib/access';
+import { getAccess, isSocio } from '../lib/access';
 import { hasLimits, limitMessage, recordUse, usageStatus } from '../lib/usage';
 import { UsageLine } from '../components/AiChoice';
 import { citedIds, GeminiError, splitCitations } from '../shared/gemini.ts';
@@ -145,7 +145,7 @@ export function PhotoPage({ online }: { online: boolean }) {
     inflight = ctrl;
     // soci: limiti di richieste AI decisi dal programmatore (un'analisi = una richiesta)
     const s = await getSettings();
-    const limited = (await getAccess())?.ruolo === 'socio' && hasLimits(s.limitiAi);
+    const limited = isSocio(await getAccess()) && hasLimits(s.limitiAi);
     if (limited) {
       const u = await usageStatus(s.limitiAi);
       if (u.superato) {

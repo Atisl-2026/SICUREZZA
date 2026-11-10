@@ -70,7 +70,7 @@ export function RemoteUpdate({ ruolo }: { ruolo: Ruolo }) {
     if (!offer) return;
     setBusy(true);
     try {
-      done(offer.versione, await applyRemote(offer.versione, offer.records, offer.ai, offer.categorie));
+      done(offer.versione, await applyRemote(offer.versione, offer.records, offer.ai, offer.categorie, offer.plus));
     } catch (e) {
       setMsg({ testo: `Aggiornamento non riuscito: ${(e as Error).message}`, tipo: 'errore' });
     } finally {
@@ -98,13 +98,17 @@ export function RemoteUpdate({ ruolo }: { ruolo: Ruolo }) {
     return (
       <form class="banner banner-col" role="alertdialog" aria-labelledby="pw-t" onSubmit={submitNewPassword}>
         <div>
-          <strong id="pw-t">La password dei soci è cambiata</strong>
-          <div class="small">Inserisci la nuova password per ricevere i contenuti aggiornati. Fino ad allora vedi quelli già scaricati.</div>
+          <strong id="pw-t">{ruolo === 'plus' ? 'La password Socio plus è cambiata' : 'La password dei soci è cambiata'}</strong>
+          <div class="small">
+            {ruolo === 'plus'
+              ? 'Inserisci la nuova password Socio plus per ricevere i contenuti aggiornati. Fino ad allora vedi quelli già scaricati.'
+              : 'Inserisci la nuova password per ricevere i contenuti aggiornati. Fino ad allora vedi quelli già scaricati.'}
+          </div>
         </div>
         <input
           type="password"
           autocomplete="current-password"
-          aria-label="Nuova password soci"
+          aria-label={ruolo === 'plus' ? 'Nuova password Socio plus' : 'Nuova password soci'}
           value={newPassword}
           onInput={(e) => setNewPassword((e.target as HTMLInputElement).value)}
         />
@@ -113,7 +117,7 @@ export function RemoteUpdate({ ruolo }: { ruolo: Ruolo }) {
           <button type="button" class="btn" disabled={busy} onClick={() => setPwChanged(null)}>Più tardi</button>
           <button type="submit" class="btn btn-primary" disabled={busy || !newPassword}>{busy ? 'Verifica…' : 'Conferma'}</button>
         </div>
-        {ruolo === 'socio' && <Contacts intro="Non hai la nuova password?" />}
+        {(ruolo === 'socio' || ruolo === 'plus') && <Contacts intro="Non hai la nuova password?" />}
       </form>
     );
   }
@@ -127,7 +131,7 @@ export function RemoteUpdate({ ruolo }: { ruolo: Ruolo }) {
             Versione {offer.versione} · {offer.records.length} schede
             {offer.versioneLocale ? ` (attuale: ${offer.versioneLocale})` : ''}
           </div>
-          {!empty && ruolo === 'admin' && <div class="small muted">Le schede modificate da te e non ancora pubblicate non verranno toccate.</div>}
+          {!empty && (ruolo === 'admin' || ruolo === 'plus') && <div class="small muted">Le schede modificate da te e non ancora pubblicate non verranno toccate.</div>}
         </div>
         <div class="btn-row">
           <button class="btn" disabled={busy} onClick={() => setOffer(null)}>Più tardi</button>

@@ -16,7 +16,7 @@ interface Item {
 }
 
 /** Programmatore: carica documenti dal telefono e li trasforma in schede (da pubblicare). */
-export function UploadPage() {
+export function UploadPage({ allowDemo = true }: { allowDemo?: boolean }) {
   const [categoria, setCategoria] = useState('');
   const [demo, setDemo] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -91,14 +91,14 @@ export function UploadPage() {
           <span class="small">Categoria</span>
           <CategoryPicker value={categoria} onChange={setCategoria} />
         </label>
-        <label class="switch">
+        {allowDemo && <label class="switch">
           <span>
             Visibili anche nella demo
             <br />
             <span class="muted small">Le schede demo sono pubblicate in chiaro.</span>
           </span>
           <input type="checkbox" role="switch" checked={demo} onChange={(e) => setDemo((e.target as HTMLInputElement).checked)} />
-        </label>
+        </label>}
         <button class="btn btn-primary btn-block" disabled={busy} onClick={() => input.current?.click()}>
           {busy ? 'Lettura dei documenti…' : 'Scegli i documenti'}
         </button>

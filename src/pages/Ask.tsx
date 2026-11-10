@@ -5,7 +5,7 @@ import { askDatabase, askWeb, type AiState } from '../lib/ai';
 import { hasAi } from '../lib/router';
 import { hasLimits, limitMessage, recordUse, usageStatus } from '../lib/usage';
 import { AiChoice, UsageLine, useUsage } from '../components/AiChoice';
-import { aiAllowed, getAccess, type Accesso } from '../lib/access';
+import { aiAllowed, getAccess, isSocio, type Accesso } from '../lib/access';
 import { db } from '../lib/db';
 import { addToHistory, clearHistory, removeFromHistory, useHistory } from '../lib/history';
 import { useLiveQuery } from '../lib/live';
@@ -78,7 +78,7 @@ function AskMain({ online, access }: Props) {
   const [usageTick, setUsageTick] = useState(0);
   // soci: raggiunto il limite di richieste l'AI resta spenta fino all'azzeramento
   const usage = useUsage(usageTick);
-  const overLimit = access.ruolo === 'socio' && !!usage?.superato;
+  const overLimit = isSocio(access) && !!usage?.superato;
   const [error, setError] = useState('');
   const settings = useSettings();
   const history = useHistory();
@@ -118,7 +118,7 @@ function AskMain({ online, access }: Props) {
     const isOnline = navigator.onLine;
     const acc = await getAccess();
     // soci: limiti di richieste AI decisi dal programmatore (il programmatore non ha limiti)
-    const limited = acc?.ruolo === 'socio' && hasLimits(s.limitiAi);
+    const limited = isSocio(acc) && hasLimits(s.limitiAi);
     const usage = limited ? await usageStatus(s.limitiAi) : null;
     const why: AiUnavailable = !aiAllowed(acc)
       ? 'nonabilitato'
@@ -269,7 +269,7 @@ function AskMain({ online, access }: Props) {
           />
         </label>
         {settings.usaAi && access.ruolo === 'admin' && <AiChoice />}
-        {access.ruolo === 'socio' && (settings.usaAi || overLimit) && <UsageLine tick={usageTick} />}
+        {isSocio(access) && (settings.usaAi || overLimit) && <UsageLine tick={usageTick} />}
         {settings.usaAi && !overLimit && <label class="switch">
           <span>
             Verifica anche sul web

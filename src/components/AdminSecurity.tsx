@@ -1,7 +1,7 @@
 import { hasAi } from '../lib/router';
 import { LimitsEditor } from './LimitsEditor';
 import { useState } from 'preact/hooks';
-import { getAiEnvelope, type Accesso } from '../lib/access';
+import { getAiEnvelope, getPlusEnvelope, type Accesso } from '../lib/access';
 import { useLiveQuery } from '../lib/live';
 import { useSettings } from '../lib/settings';
 import type { PublishOptions } from '../lib/publisher';
@@ -48,8 +48,10 @@ function NewPassword({ label, button, disabled, onSubmit }: {
 export function AdminSecurity({ access, online }: { access: Accesso; online: boolean }) {
   const settings = useSettings();
   const envelope = useLiveQuery(getAiEnvelope);
+  const plusEnvelope = useLiveQuery(getPlusEnvelope);
   const [state, setState] = useState<PublishState>(null);
   const [stopping, setStopping] = useState(false);
+  const [plusToken, setPlusToken] = useState('');
 
   const run = async (opts: PublishOptions, confirmText: string) => {
     if (!confirm(confirmText)) return false;
@@ -113,6 +115,52 @@ export function AdminSecurity({ access, online }: { access: Accesso; online: boo
       {!access.aiKey && sharing && (
         <p class="muted small">La condivisione è stata impostata da un altro dispositivo: per aggiornare chiave o modello imposta di nuovo la password AI.</p>
       )}
+
+      <h4 class="subhead">Socio plus</h4>
+      <p class="muted small">
+        {plusEnvelope
+          ? 'Attivo: chi ha la password Socio plus consulta l\'archivio come un socio e in più può caricare documenti e pubblicarli. Per togliere l\'accesso a qualcuno cambia la password; per toglierlo a tutti disattivalo.'
+          : 'Non attivo. Con una password Socio plus chi la conosce consulta l\'archivio come un socio e in più può caricare documenti e pubblicarli (non può cambiare password né condivisioni).'}
+      </p>
+      <label class="field">
+        <span class="small">Codice GitHub per i Socio plus <span class="muted">(facoltativo, consigliato)</span></span>
+        <input
+          type="password"
+          autocomplete="off"
+          placeholder="github_pat_… (vuoto = il tuo)"
+          value={plusToken}
+          onInput={(e) => setPlusToken((e.target as HTMLInputElement).value)}
+        />
+        <span class="muted small">
+          Crea un codice separato (stesso tipo del tuo: solo questo repository, permesso «Contents» in lettura e scrittura):
+          così puoi revocarlo su GitHub senza toccare il tuo accesso. Il codice arriva ai Socio plus cifrato con la loro password.
+        </span>
+      </label>
+      <NewPassword
+        label={plusEnvelope ? 'Nuova password Socio plus' : 'Password Socio plus'}
+        button={plusEnvelope ? 'Cambia password Socio plus' : 'Attiva il Socio plus con questa password'}
+        disabled={!online}
+        onSubmit={async (pw) => {
+          const ok = await run({ plusPassword: pw, plusToken }, plusEnvelope
+            ? 'Cambiare la password Socio plus?\n\nChi aveva quella vecchia potrà solo consultare finché non rientra con la nuova. Verranno pubblicate anche le modifiche in attesa.'
+            : 'Attivare l\'accesso Socio plus con questa password?\n\nVerranno pubblicate anche le modifiche in attesa.');
+          if (ok) setPlusToken('');
+          return ok;
+        }}
+      />
+      {plusEnvelope && (
+        <button
+          class="btn btn-danger btn-block"
+          disabled={!online}
+          onClick={() => run({ stopPlus: true }, 'Disattivare l\'accesso Socio plus per tutti?\n\nChi lo usa potrà solo consultare l\'archivio.')}
+        >
+          Disattiva il Socio plus
+        </button>
+      )}
+      {plusEnvelope && !access.plusKey && (
+        <p class="muted small">Il Socio plus è stato attivato da un altro dispositivo: se cambi la password soci da qui, dovrai impostare di nuovo anche la password Socio plus.</p>
+      )}
+
       {!online && <p class="muted small">Queste operazioni richiedono la connessione.</p>}
       <PublishMessage state={state} onClose={() => setState(null)} />
     </div>

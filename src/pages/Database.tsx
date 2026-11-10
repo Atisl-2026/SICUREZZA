@@ -17,27 +17,29 @@ interface Props {
   online: boolean;
   /** Solo il programmatore può creare, modificare, importare ed eliminare. */
   isAdmin: boolean;
+  /** Socio plus: come un socio, in più carica documenti e pubblica */
+  isPlus?: boolean;
 }
 
-export function DatabasePage({ online, isAdmin }: Props) {
+export function DatabasePage({ online, isAdmin, isPlus = false }: Props) {
   const route = useRoute();
   const [, sub, id, k1, v1, k2, v2] = route;
   if (sub === 'record' && id) {
     // #database/record/<id>/art/<posizione>/q/<parole>: documento aperto sull'articolo, parole evidenziate
     const art = k1 === 'art' && /^\d+$/.test(v1 ?? '') ? Number(v1) : undefined;
     const q = k2 === 'q' ? v2 : undefined;
-    return <RecordDetail id={id} isAdmin={isAdmin} art={art} q={q} />;
+    return <RecordDetail id={id} isAdmin={isAdmin} isPlus={isPlus} art={art} q={q} />;
   }
   if (isAdmin && sub === 'nuovo') return <RecordForm />;
   if (isAdmin && sub === 'modifica' && id) return <RecordForm id={id} />;
-  if (isAdmin && sub === 'carica') return <UploadPage />;
+  if ((isAdmin || isPlus) && sub === 'carica') return <UploadPage allowDemo={isAdmin} />;
   if (isAdmin && sub === 'categorie') return <CategoriesPage online={online} />;
-  return <DatabaseHome online={online} isAdmin={isAdmin} />;
+  return <DatabaseHome online={online} isAdmin={isAdmin} isPlus={isPlus} />;
 }
 
 const PAGE = 50;
 
-function DatabaseHome({ online, isAdmin }: Props) {
+function DatabaseHome({ online, isAdmin, isPlus = false }: Props) {
   const [filtro, setFiltro] = useState('');
   const [categoria, setCategoria] = useState('');
   const [limite, setLimite] = useState(PAGE);
@@ -96,7 +98,7 @@ function DatabaseHome({ online, isAdmin }: Props) {
           <dt>Schede</dt>
           <dd>{info?.records ?? '…'}</dd>
           {isAdmin && <><dt>Visibili in demo</dt><dd>{info?.demo ?? '…'}</dd></>}
-          {isAdmin && <><dt>Da pubblicare</dt><dd>{info?.daPubblicare ?? '…'}</dd></>}
+          {(isAdmin || isPlus) && <><dt>Da pubblicare</dt><dd>{info?.daPubblicare ?? '…'}</dd></>}
           <dt>Versione contenuti</dt>
           <dd>{info?.versione ?? '—'}</dd>
           <dt>Ultimo aggiornamento</dt>
@@ -114,7 +116,14 @@ function DatabaseHome({ online, isAdmin }: Props) {
         </button>
       )}
 
-      {isAdmin && <PublishPanel online={online} />}
+      {(isAdmin || isPlus) && <PublishPanel online={online} />}
+
+      {isPlus && (
+        <div class="card">
+          <a class="btn btn-primary btn-block" href="#database/carica">Carica documenti</a>
+          <p class="muted small">Come Socio plus puoi aggiungere documenti all'archivio e poi pubblicarli per tutti.</p>
+        </div>
+      )}
 
       {isAdmin && <div class="card">
         <div class="actions-grid">
@@ -173,7 +182,7 @@ function DatabaseHome({ online, isAdmin }: Props) {
                   <span class="rl-meta">
                     {r.categoria} · {formatDate(r.data_aggiornamento)}
                     {isAdmin && r.demo && <span class="chip chip-demo">demo</span>}
-                    {isAdmin && (r.origine === 'locale' || r.modificato) && <span class="chip chip-pending">da pubblicare</span>}
+                    {(isAdmin || isPlus) && (r.origine === 'locale' || r.modificato) && <span class="chip chip-pending">da pubblicare</span>}
                   </span>
                 </a>
               </li>

@@ -13,7 +13,7 @@ export function isUrl(s: string) {
   return /^https?:\/\//i.test(s.trim());
 }
 
-export function RecordDetail({ id, isAdmin, art, q }: { id: string; isAdmin: boolean; art?: number; q?: string }) {
+export function RecordDetail({ id, isAdmin, isPlus = false, art, q }: { id: string; isAdmin: boolean; isPlus?: boolean; art?: number; q?: string }) {
   const data = useLiveQuery(async () => ({
     record: await db.records.get(id),
     blocchi: await db.chunks.where('recordId').equals(id).count()
@@ -70,6 +70,12 @@ export function RecordDetail({ id, isAdmin, art, q }: { id: string; isAdmin: boo
         <div class="btn-row">
           <a class="btn btn-primary" href={`#database/modifica/${encodeURIComponent(r.id)}`}>Modifica</a>
           <button class="btn btn-danger" onClick={onDelete}>Elimina</button>
+        </div>
+      )}
+      {isPlus && r.origine === 'locale' && (
+        // il Socio plus può togliere un documento che ha caricato ma non ha ancora pubblicato
+        <div class="btn-row">
+          <button class="btn btn-danger" onClick={onDelete}>Elimina (non ancora pubblicato)</button>
         </div>
       )}
     </article>

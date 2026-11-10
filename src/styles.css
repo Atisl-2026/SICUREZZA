@@ -749,3 +749,7 @@ a.art-ref:hover { text-decoration: underline; }
 .limits-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .limits-row input { width: 100%; }
 .usage-over { margin: 6px 0 8px; }
+
+/* accesso Socio plus */
+.plus-toggle { font-weight: 700; padding: 0; text-align: left; }
+.plus-card .field { margin-top: 8px; }

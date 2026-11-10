@@ -1,12 +1,12 @@
 import { useState } from 'preact/hooks';
-import { defaultRepo, loginAdmin, loginAdminReset, loginDemo, loginSocio } from '../lib/access';
+import { defaultRepo, loginAdmin, loginAdminReset, loginDemo, loginPlus, loginSocio } from '../lib/access';
 import { WrongPasswordError } from '../shared/crypto.ts';
 import { NEW_TOKEN_URL } from '../shared/github.ts';
 import { asset, BRAND } from '../branding';
 import { Contacts } from '../components/Contacts';
 import { WelcomePage } from './Welcome';
 
-type Busy = null | 'demo' | 'socio' | 'admin';
+type Busy = null | 'demo' | 'socio' | 'plus' | 'admin';
 
 function errorText(e: unknown): string {
   if (e instanceof WrongPasswordError) return 'Password non corretta.';
@@ -19,6 +19,8 @@ export function LoginPage({ online }: { online: boolean }) {
   const [busy, setBusy] = useState<Busy>(null);
   const [error, setError] = useState('');
   const [password, setPassword] = useState('');
+  const [plusPassword, setPlusPassword] = useState('');
+  const [showPlus, setShowPlus] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);
   const [token, setToken] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
@@ -72,6 +74,32 @@ export function LoginPage({ online }: { online: boolean }) {
           {busy === 'socio' ? 'Verifica…' : 'Entra'}
         </button>
         <Contacts intro="Password dimenticata o non ancora ricevuta?" />
+      </form>
+
+      <form
+        class="card login-card plus-card"
+        onSubmit={(e) => { e.preventDefault(); run('plus', () => loginPlus(plusPassword)); }}
+      >
+        <button type="button" class="link-btn plus-toggle" aria-expanded={showPlus} onClick={() => setShowPlus(!showPlus)}>
+          Accesso Socio plus {showPlus ? '▴' : '▾'}
+        </button>
+        {showPlus && (
+          <>
+            <p class="muted small">Come i soci, in più puoi caricare documenti nell'archivio e pubblicarli. La password te la dà il programmatore.</p>
+            <label class="field">
+              <span class="small">Password Socio plus</span>
+              <input
+                type="password"
+                autocomplete="current-password"
+                value={plusPassword}
+                onInput={(e) => setPlusPassword((e.target as HTMLInputElement).value)}
+              />
+            </label>
+            <button class="btn btn-primary btn-block" type="submit" disabled={!plusPassword || !!busy || !online}>
+              {busy === 'plus' ? 'Verifica…' : 'Entra come Socio plus'}
+            </button>
+          </>
+        )}
       </form>
 
       <div class="card login-card">

@@ -1,16 +1,22 @@
 import { decryptJson, deriveKey, deriveKeyFor, keyMatches, type DerivedKey, type Envelope } from '../shared/crypto.ts';
 import { normalizeRepo, repoFromPagesUrl, verifyToken } from '../shared/github.ts';
 import { parseDbJson } from '../shared/normalize.ts';
-import { DEMO_FILE, isSociFile, openSoci, SOCI_FILE, type AiShare, type SociFile } from '../shared/publish.ts';
+import { DEMO_FILE, isSociFile, openSoci, SOCI_FILE, type AiShare, type PlusShare, type SociFile } from '../shared/publish.ts';
 import type { DbRecord, StoredRecord } from '../shared/types.ts';
 import { clearAll, db, getMeta, putRecords, setMeta } from './db';
 import { useLiveQuery } from './live';
 import { updateSettings } from './settings';
 import { forgetCategories, receiveCategories } from './categories';
 
-export type Ruolo = 'demo' | 'socio' | 'admin';
+export type Ruolo = 'demo' | 'socio' | 'plus' | 'admin';
 
-export const RUOLO_LABEL: Record<Ruolo, string> = { demo: 'Demo', socio: 'Socio', admin: 'Programmatore' };
+export const RUOLO_LABEL: Record<Ruolo, string> = { demo: 'Demo', socio: 'Socio', plus: 'Socio plus', admin: 'Programmatore' };
+
+/** Socio o Socio plus: stessi diritti di lettura, stessa AI con la password AI, stessi limiti. */
+export const isSocio = (a: Accesso | null | undefined) => a?.ruolo === 'socio' || a?.ruolo === 'plus';
+
+/** Chi può caricare documenti e pubblicare: il programmatore e il Socio plus. */
+export const canPublish = (a: Accesso | null | undefined) => a?.ruolo === 'admin' || a?.ruolo === 'plus';
 
 export interface Accesso {
   ruolo: Ruolo;
@@ -18,8 +24,13 @@ export interface Accesso {
   sociKey?: DerivedKey;
   /** Chiave derivata dalla password AI (soci abilitati all'AI). */
   aiKey?: DerivedKey;
-  /** Solo programmatore. */
+  /** Programmatore e Socio plus (codice per pubblicare). */
   github?: { token: string; repo: string; branch: string };
+  /**
+   * Chiave derivata dalla password Socio plus: il Socio plus la usa per riaprire l'accesso quando
+   * cambia la password soci; il programmatore per aggiornare l'accesso Socio plus quando la cambia lui.
+   */
+  plusKey?: DerivedKey;
 }
 
 const KEY = 'accesso';
@@ -39,7 +50,7 @@ export function useAccess(): Accesso | null | undefined {
 
 /** Chi può usare le risposte AI: il programmatore e i soci con la password AI. */
 export function aiAllowed(a: Accesso | null | undefined): boolean {
-  return a?.ruolo === 'admin' || (a?.ruolo === 'socio' && !!a.aiKey);
+  return a?.ruolo === 'admin' || (isSocio(a) && !!a!.aiKey);
 }
 
 // ------------------------------------------------------------------ download dei dati
@@ -110,7 +121,7 @@ export function getAiEnvelope(): Promise<Envelope | null> {
  */
 export async function refreshAiShare(a: Accesso, env: Envelope | undefined): Promise<string | null> {
   await setAiEnvelope(env);
-  if (a.ruolo !== 'socio' || !a.aiKey) return null;
+  if (!isSocio(a) || !a.aiKey) return null;
   if (env && keyMatches(a.aiKey, env)) {
     try {
       const share = await decryptJson<AiShare>(env, a.aiKey);
@@ -144,9 +155,66 @@ export async function loginSocio(password: string) {
   const payload = await openSoci(file, sociKey); // WrongPasswordError se sbagliata
   await replaceRecords(payload.records, file.versione);
   await setAiEnvelope(payload.ai);
+  await setPlusEnvelope(file.plus);
   await receiveCategories(payload.categorie);
   await updateSettings({ apiKey: '', webCheck: false, riserve: {}, limitiAi: {}, aiScelta: 'auto' });
   await setAccess({ ruolo: 'socio', sociKey });
+}
+
+// ------------------------------------------------------------------ Socio plus
+
+/** Busta dell'accesso Socio plus (dal file dei soci). */
+export async function setPlusEnvelope(env: Envelope | undefined) {
+  await setMeta('plusEnvelope', env ?? null);
+}
+
+export function getPlusEnvelope(): Promise<Envelope | null> {
+  return getMeta<Envelope | null>('plusEnvelope', null);
+}
+
+/** Apre l'accesso Socio plus del file dei soci con la password Socio plus. */
+async function openPlus(password: string, file: SociFile) {
+  if (!file.plus) throw new Error('L\'accesso Socio plus non è attivo: chiedi al programmatore.');
+  const plusKey = await deriveKeyFor(password, file.plus);
+  const share = await decryptJson<PlusShare>(file.plus, plusKey); // WrongPasswordError se sbagliata
+  const payload = await openSoci(file, share.sociKey);
+  return { plusKey, share, payload };
+}
+
+/** Socio plus: come un socio, in più carica documenti e pubblica. Entra con la sola password Socio plus. */
+export async function loginPlus(password: string) {
+  const file = await fetchSoci();
+  const { plusKey, share, payload } = await openPlus(password, file);
+  await replaceRecords(payload.records, file.versione);
+  await setAiEnvelope(payload.ai);
+  await setPlusEnvelope(file.plus);
+  await receiveCategories(payload.categorie);
+  await updateSettings({ apiKey: '', webCheck: false, riserve: {}, limitiAi: {}, aiScelta: 'auto' });
+  await setAccess({ ruolo: 'plus', sociKey: share.sociKey, plusKey, github: share.github });
+}
+
+/**
+ * Dopo un aggiornamento dei contenuti: per il Socio plus, se il programmatore ha cambiato
+ * il codice GitHub lo si aggiorna; se ha cambiato la password Socio plus o tolto l'accesso,
+ * resta un accesso da socio (può continuare a leggere). Restituisce un messaggio, o null.
+ */
+export async function refreshPlus(a: Accesso, env: Envelope | undefined): Promise<string | null> {
+  await setPlusEnvelope(env);
+  if (a.ruolo !== 'plus') return null;
+  if (env && keyMatches(a.plusKey, env)) {
+    try {
+      const share = await decryptJson<PlusShare>(env, a.plusKey!);
+      await setAccess({ ...(await getAccess())!, sociKey: share.sociKey, github: share.github });
+      return null;
+    } catch {
+      /* password cambiata */
+    }
+  }
+  const now = (await getAccess())!;
+  await setAccess({ ...now, ruolo: 'socio', plusKey: undefined, github: undefined });
+  return env
+    ? 'La password Socio plus è cambiata: per caricare e pubblicare esci e rientra con quella nuova.'
+    : 'L\'accesso Socio plus è stato disattivato dal programmatore: puoi continuare a consultare l\'archivio.';
 }
 
 /** Repository dell'app: dal workflow di pubblicazione, altrimenti dall'indirizzo GitHub Pages. */
@@ -176,6 +244,7 @@ export async function loginAdmin(token: string, password: string, repoInput: str
     const payload = await openSoci(file, sociKey);
     await replaceRecords(payload.records, file.versione);
     await setAiEnvelope(payload.ai);
+    await setPlusEnvelope(file.plus);
     await receiveCategories(payload.categorie);
     await setAccess({ ruolo: 'admin', sociKey, github: { token: token.trim(), repo: fullName, branch } });
     return { primoAccesso: false };
@@ -191,6 +260,12 @@ export async function loginAdmin(token: string, password: string, repoInput: str
 export async function reenterSociPassword(password: string, file: SociFile) {
   const a = await getAccess();
   if (!a || a.ruolo === 'demo') throw new Error('Accesso non valido.');
+  if (a.ruolo === 'plus') {
+    // il Socio plus inserisce la propria password (Socio plus), non quella dei soci
+    const { plusKey, share, payload } = await openPlus(password, file);
+    await setAccess({ ...a, sociKey: share.sociKey, plusKey, github: share.github });
+    return payload;
+  }
   const sociKey = await deriveKeyFor(password, file.cifrato);
   const payload = await openSoci(file, sociKey);
   await setAccess({ ...a, sociKey });
@@ -201,7 +276,7 @@ export async function reenterSociPassword(password: string, file: SociFile) {
 export async function unlockAi(password: string) {
   const a = await getAccess();
   const env = await getAiEnvelope();
-  if (!a || a.ruolo !== 'socio') throw new Error('Solo per i soci.');
+  if (!a || !isSocio(a)) throw new Error('Solo per i soci.');
   if (!env) throw new Error('Il programmatore non ha condiviso le risposte AI.');
   const aiKey = await deriveKeyFor(password, env);
   const share = await decryptJson<AiShare>(env, aiKey); // WrongPasswordError se sbagliata
@@ -219,7 +294,7 @@ export async function lockAi() {
 export async function logout() {
   await clearAll();
   await forgetCategories();
-  await db.meta.bulkDelete([KEY, 'aiEnvelope', 'indice', 'cronologia', 'versione', 'aggiornato_il']);
+  await db.meta.bulkDelete([KEY, 'aiEnvelope', 'plusEnvelope', 'indice', 'cronologia', 'versione', 'aggiornato_il']);
   await updateSettings({ apiKey: '', webCheck: false, riserve: {}, limitiAi: {}, aiScelta: 'auto' });
 }
 
@@ -249,6 +324,7 @@ export async function loginAdminReset(token: string, newPassword: string, repoIn
     if (!(e instanceof NotPublishedError)) throw e;
   }
   await replaceRecords(demo, versione);
+  await setPlusEnvelope(undefined); // nuova password soci: l'accesso Socio plus va ricreato
   if (!versione) await db.meta.delete('versione');
   // da ripubblicare: le schede demo devono finire anche nel nuovo file dei soci
   await db.records.toCollection().modify((r) => { r.origine = 'locale'; });

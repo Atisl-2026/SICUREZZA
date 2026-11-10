@@ -28,7 +28,7 @@ export async function runPublish(opts?: PublishOptions): Promise<PublishState> {
     const r = await publish(opts);
     return {
       tipo: 'ok',
-      testo: `Pubblicato: ${r.schede} schede (${r.demo} visibili in demo). Tutti i telefoni le riceveranno tra 1–2 minuti.`,
+      testo: `Pubblicato: ${r.schede} schede (${r.demo} visibili in demo). Tutti i telefoni le riceveranno tra 1–2 minuti.${r.avviso ? ` ${r.avviso}` : ''}`,
       link: r.url
     };
   } catch (e) {

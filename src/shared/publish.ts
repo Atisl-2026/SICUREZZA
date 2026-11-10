@@ -17,6 +17,20 @@ export interface SociFile {
   versione: string;
   generato: string;
   cifrato: Envelope;
+  /**
+   * Accesso «Socio plus» (facoltativo): PlusShare cifrato con la password Socio plus.
+   * Le versioni precedenti dell'app ignorano il campo.
+   */
+  plus?: Envelope;
+}
+
+/**
+ * Cosa riceve chi ha la password Socio plus: la chiave per leggere i contenuti dei soci
+ * (mai la password soci in chiaro) e il codice GitHub per pubblicare.
+ */
+export interface PlusShare {
+  sociKey: DerivedKey;
+  github: { token: string; repo: string; branch: string };
 }
 
 /** Configurazione AI condivisa con chi ha la password AI. */
@@ -60,7 +74,7 @@ export interface Publication {
 export async function buildPublication(
   records: DbRecord[],
   sociKey: DerivedKey,
-  opts: { versione?: string; ai?: Envelope; categorie?: string[] } = {}
+  opts: { versione?: string; ai?: Envelope; categorie?: string[]; plus?: Envelope } = {}
 ): Promise<Publication> {
   const versione = opts.versione ?? newVersion();
   const generato = new Date().toISOString();
@@ -73,7 +87,13 @@ export async function buildPublication(
   };
   return {
     demo: { versione, generato, records: clean.filter((r) => r.demo) },
-    soci: { formato: 'consulta-soci-1', versione, generato, cifrato: await encryptJson(payload, sociKey) }
+    soci: {
+      formato: 'consulta-soci-1',
+      versione,
+      generato,
+      cifrato: await encryptJson(payload, sociKey),
+      ...(opts.plus ? { plus: opts.plus } : {})
+    }
   };
 }
 

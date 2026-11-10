@@ -38,7 +38,9 @@ export function SettingsPage({ online, access }: Props) {
   const onLogout = async () => {
     const msg = access.ruolo === 'admin'
       ? 'Uscire? Dal telefono verranno cancellati contenuti, codice GitHub e chiave Gemini.\nLe schede non ancora pubblicate andranno perse.'
-      : 'Uscire? I contenuti verranno cancellati da questo telefono: per rientrare servirà di nuovo la password.';
+      : access.ruolo === 'plus'
+        ? 'Uscire? Dal telefono verranno cancellati i contenuti; i documenti caricati e non ancora pubblicati andranno persi. Per rientrare servirà di nuovo la password Socio plus.'
+        : 'Uscire? I contenuti verranno cancellati da questo telefono: per rientrare servirà di nuovo la password.';
     if (!confirm(msg)) return;
     await logout();
     location.hash = '';
@@ -60,7 +62,7 @@ export function SettingsPage({ online, access }: Props) {
 
       <InstallCard />
 
-      {access.ruolo === 'socio' && <AiUnlock access={access} />}
+      {(access.ruolo === 'socio' || access.ruolo === 'plus') && <AiUnlock access={access} />}
       {access.ruolo === 'admin' && <GeminiSettings online={online} />}
       {access.ruolo === 'admin' && <ReserveSettings online={online} />}
       {access.ruolo === 'admin' && <PaidSettings online={online} />}

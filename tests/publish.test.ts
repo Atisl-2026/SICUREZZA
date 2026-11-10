@@ -296,3 +296,111 @@ describe('estrazione dei documenti', () => {
     expect(() => readXlsx(new Uint8Array(readFileSync('tests/fixtures/prova-libreoffice.docx')))).toThrow(/non è un file Excel/);
   });
 });
+
+describe('Socio plus: carica documenti e pubblica (GitHub simulato)', () => {
+  let repo: FakeRepo;
+  const PLUS = 'password-plus-1';
+
+  beforeEach(async () => {
+    repo = await initialRepo();
+    vi.stubGlobal('location', { origin: 'https://atisl-2026.github.io', href: 'https://atisl-2026.github.io/SICUREZZA/' });
+    vi.stubGlobal('navigator', { onLine: true });
+    vi.stubGlobal('fetch', fakeGitHub(repo));
+    const { logout } = await import('../src/lib/access');
+    await logout();
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  const soci = () => JSON.parse(repo.files['data/soci.json']) as SociFile;
+
+  it('il programmatore attiva il Socio plus; il Socio plus entra, carica e pubblica senza toccare AI e password', async () => {
+    const { loginAdmin, logout, loginPlus, loginSocio, getAccess, canPublish } = await import('../src/lib/access');
+    const { publish } = await import('../src/lib/publisher');
+    const { updateSettings } = await import('../src/lib/settings');
+    const { putRecords, db } = await import('../src/lib/db');
+    await loginAdmin('github_pat_OK', PW, 'Atisl-2026/SICUREZZA');
+    await updateSettings({ apiKey: 'AIzaMIA', model: 'gemini-flash-latest', limitiSoci: { giorno: 3 } });
+    await publish({ aiPassword: 'password-ai-1' });
+    await publish({ plusPassword: PLUS });
+    expect(soci().plus).toBeTruthy();
+    expect(repo.files['data/soci.json']).not.toContain('github_pat_OK'); // il codice GitHub è cifrato
+    expect(repo.commits.at(-1)!.message).toMatch(/nuova password Socio plus/);
+    const aiBefore = (await openSoci(soci(), await deriveKeyFor(PW, soci().cifrato))).ai;
+
+    await logout();
+    const { WrongPasswordError } = await import('../src/shared/crypto.ts');
+    await expect(loginPlus('sbagliata-123')).rejects.toBeInstanceOf(WrongPasswordError);
+    await loginPlus(PLUS);
+    const a = (await getAccess())!;
+    expect(a.ruolo).toBe('plus');
+    expect(canPublish(a)).toBe(true);
+    expect(await db.records.count()).toBe(sample.records.length);
+
+    await putRecords([newRecord('caricata-dal-socio-plus')]);
+    await publish();
+    expect(repo.commits.at(-1)!.message).toMatch(/1 nuove/);
+    await expect(publish({ newSociPassword: 'altra-password-1' })).rejects.toThrow(/Solo il programmatore/);
+    await expect(publish({ plusPassword: 'altra-password-1' })).rejects.toThrow(/Solo il programmatore/);
+    // la condivisione dell'AI (con i limiti) e l'accesso Socio plus restano com'erano
+    const after = await openSoci(soci(), await deriveKeyFor(PW, soci().cifrato));
+    expect(after.ai).toEqual(aiBefore);
+    expect(soci().plus).toBeTruthy();
+
+    // i soci vedono il documento caricato dal Socio plus
+    await logout();
+    await loginSocio(PW);
+    expect(await db.records.get('caricata-dal-socio-plus')).toBeTruthy();
+  });
+
+  it('cambio della password soci: il Socio plus continua a entrare; disattivazione', async () => {
+    const { loginAdmin, logout, loginPlus, getAccess } = await import('../src/lib/access');
+    const { publish } = await import('../src/lib/publisher');
+    await loginAdmin('github_pat_OK', PW, 'Atisl-2026/SICUREZZA');
+    await publish({ plusPassword: PLUS });
+    await publish({ newSociPassword: 'nuova-password-soci' });
+    expect(soci().plus).toBeTruthy();
+    await logout();
+    await loginPlus(PLUS);
+    expect((await getAccess())!.ruolo).toBe('plus');
+
+    await logout();
+    await loginAdmin('github_pat_OK', 'nuova-password-soci', 'Atisl-2026/SICUREZZA');
+    // su questo telefono non c'è la password Socio plus: cambiando la password soci l'accesso va ricreato
+    const r = await publish({ newSociPassword: 'terza-password-soci' });
+    expect(r.avviso).toMatch(/Socio plus è stato disattivato/);
+    expect(soci().plus).toBeUndefined();
+    await logout();
+    await expect(loginPlus(PLUS)).rejects.toThrow(/non è attivo/);
+  });
+
+  it('aggiornamenti: il Socio plus segue da solo la nuova password soci; se viene disattivato resta socio', async () => {
+    const { loginAdmin, logout, loginPlus, getAccess, refreshPlus } = await import('../src/lib/access');
+    const { publish } = await import('../src/lib/publisher');
+    const { checkRemote } = await import('../src/lib/remote');
+    await loginAdmin('github_pat_OK', PW, 'Atisl-2026/SICUREZZA');
+    await publish({ plusPassword: PLUS });
+    const plusEnv = soci().plus!;
+    await logout();
+    await loginPlus(PLUS);
+
+    // il programmatore (da un altro telefono) cambia la password soci e ripubblica l'accesso Socio plus
+    const { decryptJson, encryptJson } = await import('../src/shared/crypto.ts');
+    const plusKey = (await getAccess())!.plusKey!;
+    const share = await decryptJson<{ sociKey: unknown; github: unknown }>(plusEnv, plusKey);
+    const newKey = await deriveKey('altra-password-soci', undefined, FAST);
+    const pub = await buildPublication(sample.records, newKey, {
+      versione: '2027.01.01.000000',
+      plus: await encryptJson({ ...share, sociKey: newKey }, plusKey)
+    });
+    repo.files['data/soci.json'] = serializeSoci(pub.soci);
+    const c = await checkRemote();
+    expect(c.stato).toBe('disponibile');
+    expect((await getAccess())!.sociKey!.sale).toBe(newKey.sale);
+
+    // accesso Socio plus tolto: si continua a consultare come socio
+    const msg = await refreshPlus((await getAccess())!, undefined);
+    expect(msg).toMatch(/disattivato/);
+    expect((await getAccess())!.ruolo).toBe('socio');
+    expect((await getAccess())!.github).toBeUndefined();
+  });
+});

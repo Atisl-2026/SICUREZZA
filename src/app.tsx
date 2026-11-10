@@ -84,7 +84,7 @@ export function App() {
           <p class="demo-banner" role="note">Modalità demo: stai vedendo una selezione dei contenuti.</p>
         )}
         {tab === 'chiedi' && <AskPage online={online} access={access} />}
-        {tab === 'database' && <DatabasePage online={online} isAdmin={isAdmin} />}
+        {tab === 'database' && <DatabasePage online={online} isAdmin={isAdmin} isPlus={access.ruolo === 'plus'} />}
         {tab === 'impostazioni' && <SettingsPage online={online} access={access} />}
       </main>
 

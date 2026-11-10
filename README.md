@@ -154,6 +154,25 @@ uscendo. La **verifica sul web** resta solo con Gemini. Le AI di riserva, soprat
 precise di Gemini: per questo la risposta dice sempre chi l'ha scritta.
 
 
+### Socio plus
+
+In *Impostazioni → Password e condivisione → Socio plus* il programmatore attiva l'accesso con una password, la
+**cambia** (chi aveva quella vecchia può solo consultare finché non rientra con la nuova) o lo **disattiva**.
+
+- Per pubblicare serve un codice GitHub: il Socio plus lo riceve **cifrato con la password Socio plus** dentro il file
+  dei soci (insieme alla chiave per leggere i contenuti; la password dei soci non viene mai scritta in chiaro).
+  Conviene creare per i Socio plus un **codice GitHub separato** (stesso tipo di quello del programmatore: solo questo
+  repository, permesso «Contents» in lettura e scrittura) e inserirlo nel campo *Codice GitHub per i Socio plus*: così
+  si può revocare su GitHub senza toccare il proprio. Lasciato vuoto, si usa quello del programmatore.
+- L'app non ha un server: chi conosce la password Socio plus potrebbe, con conoscenze tecniche, estrarre quel codice
+  dal telefono. Dallo solo a persone di fiducia; se una persona non deve più pubblicare, cambia la password Socio plus e,
+  per sicurezza, revoca e rigenera il codice GitHub dei Socio plus.
+- Se il programmatore cambia la **password soci** dallo stesso telefono su cui ha attivato il Socio plus, l'accesso
+  Socio plus si aggiorna da solo; da un altro telefono va impostata di nuovo la password Socio plus (l'app lo avvisa).
+- Il Socio plus carica i documenti (*Archivio → Carica documenti*), può eliminare quelli caricati e non ancora
+  pubblicati, poi tocca **Pubblica**: le modifiche del programmatore non ancora pubblicate restano sul suo telefono e
+  non vengono toccate; se nel frattempo qualcuno ha pubblicato, l'app chiede prima di scaricare gli aggiornamenti.
+
 ### Risposta AI accesa o spenta, scelta dell'AI, limiti per i soci
 
 - **Risposta AI** (scheda Chiedi, soci e programmatore): interruttore per fare la domanda con o senza AI. Spenta, si
@@ -210,6 +229,7 @@ Chi ha già effettuato l'accesso apre l'app direttamente sui contenuti.
 |---|---|---|
 | **Demo** | *Prova la demo*, senza password | solo le schede segnate come **visibili in demo**; ricerca, niente AI |
 | **Socio** | **password soci** | tutto l'archivio, in sola lettura; ricerca. Le risposte AI solo con la **password AI** (*Impostazioni → Risposte AI*) |
+| **Socio plus** | *Accesso Socio plus*: **password Socio plus** (la dà il programmatore) | come il socio (anche AI con la password AI e gli stessi limiti), in più **carica documenti** nell'archivio e **pubblica**. Non può modificare o eliminare le schede già pubblicate, scegliere cosa va in demo, cambiare password o condivisioni |
 | **Programmatore** | *Accesso programmatore*: **codice di accesso GitHub** + password soci | tutto, più creare, modificare, eliminare e **caricare documenti**, scegliere cosa è visibile in demo, **pubblicare** per tutti, cambiare **password soci** e **password AI**, chiave Gemini |
 
 Come sono protetti i contenuti:
