@@ -3,6 +3,7 @@
 /// <reference types="vite-plugin-pwa/preact" />
 
 declare const __APP_VERSION__: string;
+declare const __OCR_VERSION__: string;
 
 interface ImportMetaEnv {
   /** "proprietario/repository" su GitHub, impostato dal workflow di pubblicazione. */

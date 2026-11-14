@@ -544,10 +544,14 @@ export async function readPdfWith(
     getMeta: (pdf: never) => Promise<{ info?: Record<string, unknown> }>;
   },
   bytes: Uint8Array,
-  warn: (m: string) => void
+  warn: (m: string) => void,
+  /** lettura OCR delle pagine scansionate (solo nel browser): riceve il testo di ogni pagina e lo completa */
+  ocr?: (pdf: never, pages: string[]) => Promise<string[]>
 ): Promise<Doc> {
   const pdf = (await unpdf.getDocumentProxy(new Uint8Array(bytes))) as never;
-  const { totalPages, text: pages } = await unpdf.extractText(pdf, { mergePages: false });
+  const extracted = await unpdf.extractText(pdf, { mergePages: false });
+  const totalPages = extracted.totalPages;
+  const pages = ocr ? await ocr(pdf, extracted.text) : extracted.text;
   let title = '';
   try {
     title = goodTitle((await unpdf.getMeta(pdf)).info?.Title);
@@ -555,7 +559,7 @@ export async function readPdfWith(
     /* metadati assenti */
   }
   const text = cleanPdfText(pages);
-  if (text.replace(/\s/g, '').length < 20 * totalPages) {
+  if (!ocr && text.replace(/\s/g, '').length < 20 * totalPages) {
     warn(`poco testo estratto (${text.length} caratteri su ${totalPages} pagine): forse è una scansione senza OCR`);
   }
   return { title, text, pagine: pageOffsets(text, pages) };

@@ -510,6 +510,13 @@ dl.kv.card dd { overflow-wrap: anywhere; }
 .upload-preview { margin: 6px 0 0; color: var(--text-muted); white-space: pre-wrap; overflow-wrap: anywhere; }
 .upload-replace { margin: 4px 0 0; color: var(--warn); }
 .upload-save { margin-bottom: 16px; }
+.upload-progress { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 10px; }
+.upload-progress span { overflow-wrap: anywhere; }
+.upload-item.upload-dup { opacity: 1; border-color: var(--warn); }
+.upload-dup-box { margin-top: 8px; padding: 10px 12px; border-radius: 10px; background: var(--warn-soft); color: var(--text); }
+.upload-dup-box p { margin: 0 0 6px; }
+.upload-dup-box ul { margin: 0 0 8px; padding-left: 18px; }
+.upload-dup-box .btn-row { margin-top: 4px; }
 
 /* ===== Marchio ATISL ===== */
 .topbar { border-bottom: 3px solid var(--accent); }

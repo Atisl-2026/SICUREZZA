@@ -9,6 +9,39 @@ import pkg from './package.json' with { type: 'json' };
 const UNPDF_VERSION = (JSON.parse(readFileSync(new URL('./node_modules/unpdf/package.json', import.meta.url), 'utf8')) as { version: string }).version;
 const PDF_DIR = `assets/pdf-${UNPDF_VERSION}`;
 
+// Lettura OCR (tesseract.js): motore, worker e vocabolario italiano serviti dal sito dell'app (niente CDN
+// esterni), con nomi fissi per versione e fuori dall'installazione: si scaricano solo al primo uso.
+const OCR_VERSION = (JSON.parse(readFileSync(new URL('./node_modules/tesseract.js/package.json', import.meta.url), 'utf8')) as { version: string }).version;
+const OCR_DIR = `assets/ocr-${OCR_VERSION}`;
+const OCR_FILES: Record<string, string> = {
+  'worker.min.js': 'tesseract.js/dist/worker.min.js',
+  // il worker sceglie da solo la variante adatta al telefono (solo motore LSTM)
+  'tesseract-core-relaxedsimd-lstm.wasm.js': 'tesseract.js-core/tesseract-core-relaxedsimd-lstm.wasm.js',
+  'tesseract-core-simd-lstm.wasm.js': 'tesseract.js-core/tesseract-core-simd-lstm.wasm.js',
+  'tesseract-core-lstm.wasm.js': 'tesseract.js-core/tesseract-core-lstm.wasm.js',
+  'ita.traineddata.gz': '@tesseract.js-data/ita/4.0.0_best_int/ita.traineddata.gz'
+};
+function ocrFiles(): Plugin {
+  const src = (name: string) => new URL(`./node_modules/${OCR_FILES[name]}`, import.meta.url);
+  return {
+    name: 'consulta-ocr',
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        const path = req.url?.split('?')[0] ?? '';
+        const name = path.startsWith(`${base}${OCR_DIR}/`) ? path.slice(`${base}${OCR_DIR}/`.length) : '';
+        if (!OCR_FILES[name]) return next();
+        res.setHeader('Content-Type', name.endsWith('.js') ? 'text/javascript' : 'application/octet-stream');
+        res.end(readFileSync(src(name)));
+      });
+    },
+    generateBundle() {
+      for (const name of Object.keys(OCR_FILES)) {
+        this.emitFile({ type: 'asset', fileName: `${OCR_DIR}/${name}`, source: readFileSync(src(name)) });
+      }
+    }
+  };
+}
+
 // Su GitHub Pages l'app vive in /<nome-repo>/: il workflow imposta BASE_PATH.
 const base = process.env.BASE_PATH || '/';
 
@@ -42,11 +75,13 @@ function dataFiles(): Plugin {
 export default defineConfig({
   base,
   define: {
-    __APP_VERSION__: JSON.stringify(pkg.version)
+    __APP_VERSION__: JSON.stringify(pkg.version),
+    __OCR_VERSION__: JSON.stringify(OCR_VERSION)
   },
   plugins: [
     preact(),
     dataFiles(),
+    ocrFiles(),
     VitePWA({
       registerType: 'prompt',
       injectRegister: false,
@@ -81,12 +116,17 @@ export default defineConfig({
         // I file dei dati NON vanno in precache: li gestisce l'app (versione + conferma).
         // il lettore PDF (~1,7 MB) serve solo al programmatore: fuori dall'installazione,
         // messo in cache al primo uso
-        globIgnores: ['**/data/*.json', '**/assets/pdf-*/**', '**/download/**'],
+        globIgnores: ['**/data/*.json', '**/assets/pdf-*/**', '**/assets/ocr-*/**', '**/download/**'],
         runtimeCaching: [
           {
             urlPattern: ({ url }) => url.pathname.includes('/assets/pdf-'),
             handler: 'CacheFirst',
             options: { cacheName: 'lettore-pdf', expiration: { maxEntries: 20 } }
+          },
+          {
+            urlPattern: ({ url }) => url.pathname.includes('/assets/ocr-'),
+            handler: 'CacheFirst',
+            options: { cacheName: 'lettore-ocr', expiration: { maxEntries: 12 } }
           }
         ]
       },
@@ -99,11 +139,17 @@ export default defineConfig({
       output: {
         // l'aiutante di Vite per i caricamenti differiti in un file a parte con nome fisso: così il lettore
         // PDF non dipende dal file principale dell'app (che cambia nome a ogni versione)
-        manualChunks: (id: string) => (id.includes('vite/preload-helper') ? 'preload-helper' : undefined),
+        // (lo stesso per l'aiutante dei moduli CommonJS usato dal lettore OCR)
+        manualChunks: (id: string) =>
+          id.includes('vite/preload-helper') ? 'preload-helper' : id.includes('commonjsHelpers') ? 'commonjs-helpers' : undefined,
         chunkFileNames: (chunk: { name: string; moduleIds: string[] }) =>
-          chunk.name === 'preload-helper'
-            ? 'assets/preload-helper.js'
-            : chunk.moduleIds.some((id: string) => id.includes('/node_modules/unpdf/')) ? `${PDF_DIR}/[name].js` : 'assets/[name]-[hash].js'
+          chunk.name === 'preload-helper' || chunk.name === 'commonjs-helpers'
+            ? `assets/${chunk.name}.js`
+            : chunk.moduleIds.some((id: string) => id.includes('/node_modules/unpdf/'))
+              ? `${PDF_DIR}/[name].js`
+              : chunk.moduleIds.some((id: string) => id.includes('/node_modules/tesseract.js/'))
+                ? `${OCR_DIR}/[name].js`
+                : 'assets/[name]-[hash].js'
       }
     }
   },
