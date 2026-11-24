@@ -100,15 +100,23 @@ async function viaGemini(s: Settings, t: AiTask): Promise<AiAnswer> {
 async function viaClaude(s: Settings, t: AiTask): Promise<AiAnswer> {
   const key = s.riserve.anthropic!;
   const { callClaude, DEFAULT_CLAUDE_MODEL } = await import('./claude');
-  const answer = await callClaude(t.request, {
+  const run = (model: string) => callClaude(t.request, {
     apiKey: key.apiKey,
-    model: key.model?.trim() || DEFAULT_CLAUDE_MODEL,
+    model,
     timeoutMs: Math.max(t.timeoutMs, 60000),
     signal: t.signal,
     thinking: t.thinking,
     onText: t.onText
   });
-  return { ...answer, fornitore: 'anthropic' };
+  const chosen = key.model?.trim() || DEFAULT_CLAUDE_MODEL;
+  try {
+    return { ...(await run(chosen)), fornitore: 'anthropic' };
+  } catch (e) {
+    // modello scelto non disponibile per questa chiave: si riprova con quello consigliato
+    if (!(e instanceof GeminiError) || e.kind !== 'modello' || chosen === DEFAULT_CLAUDE_MODEL) throw e;
+    t.onNotice?.(`${e.message} Provo con ${DEFAULT_CLAUDE_MODEL}…`);
+    return { ...(await run(DEFAULT_CLAUDE_MODEL)), fornitore: 'anthropic' };
+  }
 }
 
 async function viaReserve(p: ProviderId, s: Settings, t: AiTask): Promise<AiAnswer> {

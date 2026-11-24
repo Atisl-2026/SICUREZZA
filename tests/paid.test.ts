@@ -51,7 +51,10 @@ describe('Claude (a pagamento)', () => {
     expect(a).toMatchObject({ text: 'Il preposto sovrintende [tu].', servizio: 'Claude', modello: 'claude-opus-5-5', truncated: false });
     expect(seen.at(-1)).toBe('Il preposto sovrintende [tu].');
     expect(calls[0].url).toMatch(/api\.anthropic\.com\/v1\/messages/);
-    expect(calls[0].headers.get('authorization') ?? calls[0].headers.get('x-api-key')).toMatch(/sk-ant-x$/);
+    // dal browser Anthropic legge la chiave solo in «x-api-key» (con «Authorization: Bearer» risponde
+    // «x-api-key header is required»)
+    expect(calls[0].headers.get('x-api-key')).toBe('sk-ant-x');
+    expect(calls[0].headers.get('authorization')).toBeNull();
     expect(calls[0].headers.get('anthropic-dangerous-direct-browser-access')).toBe('true');
     expect(calls[0].headers.get('anthropic-beta')).toContain('server-side-fallback-2026-07-01');
     expect(calls[0].body).toMatchObject({ stream: true, fallbacks: 'default', model: 'claude-opus-5-5' });
@@ -64,6 +67,10 @@ describe('Claude (a pagamento)', () => {
     await expect(run(() => json(400, { type: 'error', error: { type: 'invalid_request_error', message: 'Your credit balance is too low to access the Anthropic API.' } })))
       .rejects.toMatchObject({ kind: 'quota', message: expect.stringMatching(/credito esaurito/) });
     await expect(run(() => json(529, { type: 'error', error: { type: 'overloaded_error', message: 'Overloaded' } }))).rejects.toMatchObject({ kind: 'sovraccarico' });
+    await expect(run(() => json(401, { type: 'error', error: { type: 'authentication_error', message: 'x-api-key header is required' } })))
+      .rejects.toMatchObject({ message: expect.stringContaining('x-api-key header is required') });
+    await expect(run(() => json(429, { type: 'error', error: { type: 'rate_limit_error', message: 'This request would exceed the rate limit for your organization of 30,000 input tokens per minute.' } })))
+      .rejects.toMatchObject({ kind: 'quota', message: expect.stringMatching(/limite di richieste al minuto/) });
   }, 20000);
 });
 

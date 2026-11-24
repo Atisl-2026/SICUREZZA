@@ -84,32 +84,71 @@ async function sdk() {
 
 async function client(apiKey: string, fetchImpl?: typeof fetch) {
   const A = await sdk();
-  // la chiave resta sul dispositivo dell'utente: la libreria richiede di confermarlo esplicitamente
-  return { A, c: new A({ apiKey: apiKey.trim(), dangerouslyAllowBrowser: true, maxRetries: 1, ...(fetchImpl ? { fetch: fetchImpl } : {}) }) };
+  const key = apiKey.trim();
+  // la chiave resta sul dispositivo dell'utente: la libreria richiede di confermarlo esplicitamente.
+  // La libreria la manderebbe come «Authorization: Bearer», che nelle chiamate dal browser (l'app sul
+  // telefono) Anthropic non legge («x-api-key header is required»): si manda come «x-api-key».
+  return {
+    A,
+    c: new A({
+      apiKey: key,
+      defaultHeaders: { 'x-api-key': key, Authorization: null },
+      dangerouslyAllowBrowser: true,
+      maxRetries: 1,
+      ...(fetchImpl ? { fetch: fetchImpl } : {})
+    })
+  };
 }
 
-/** Errori della libreria → GeminiError (stessi tipi del resto dell'app). */
-function classify(A: typeof Anthropic, e: unknown, timedOut: boolean, signal?: AbortSignal): GeminiError {
+/** Il motivo indicato da Anthropic (es. «invalid x-api-key», «Your credit balance is too low…»). */
+function reason(e: { error?: unknown; message: string }): string {
+  const m = (e.error as { error?: { message?: unknown } } | undefined)?.error?.message;
+  return (typeof m === 'string' && m ? m : e.message).replace(/^\d{3}\s+/, '').replace(/\s+/g, ' ').trim().slice(0, 240);
+}
+
+const errorType = (e: { error?: unknown }) => (e.error as { error?: { type?: string } } | undefined)?.error?.type ?? '';
+
+/** Errori della libreria → GeminiError (stessi tipi del resto dell'app), con il motivo dato da Anthropic. */
+export function classify(A: typeof Anthropic, e: unknown, timedOut: boolean, signal?: AbortSignal): GeminiError {
   if (e instanceof GeminiError) return e;
   if (e instanceof A.APIUserAbortError) {
     return timedOut ? new GeminiError('timeout', 'Claude non ha risposto in tempo.') : new GeminiError('annullata', 'Richiesta annullata.');
   }
   if (signal?.aborted) return new GeminiError('annullata', 'Richiesta annullata.');
-  if (e instanceof A.AuthenticationError) return new GeminiError('chiave', 'Claude: chiave non valida o revocata. Controllala nelle Impostazioni.', 401);
-  if (e instanceof A.PermissionDeniedError) return new GeminiError('chiave', `Claude: accesso negato (${e.message}).`, 403);
-  if (e instanceof A.NotFoundError) return new GeminiError('modello', 'Claude: modello non disponibile per questa chiave.', 404);
-  if (e instanceof A.RateLimitError) return new GeminiError('quota', 'Claude: troppe richieste in poco tempo o limite di spesa raggiunto. Riprova tra un minuto.', 429, { periodo: 'minuto' });
-  if (e instanceof A.BadRequestError) {
-    if (/credit balance|billing|purchase credits/i.test(e.message)) {
-      return new GeminiError('quota', 'Claude: credito esaurito. Ricarica il credito su console.anthropic.com → Billing.', 400, { periodo: 'giorno' });
-    }
-    return new GeminiError('sconosciuto', `Claude: richiesta non valida (${e.message}).`, 400);
-  }
-  if (e instanceof A.InternalServerError) return new GeminiError('sovraccarico', 'Claude: servizio momentaneamente sovraccarico. Riprova tra poco.', e.status);
   if (e instanceof A.APIConnectionTimeoutError) return new GeminiError('timeout', 'Claude non ha risposto in tempo.');
   if (e instanceof A.APIConnectionError) return new GeminiError('rete', 'Claude: connessione non riuscita. Controlla la rete.');
-  if (e instanceof A.APIError) return new GeminiError('sconosciuto', `Claude: errore ${e.status ?? ''} ${e.message}`.trim(), e.status);
-  return new GeminiError('sconosciuto', `Claude: ${(e as Error)?.message || 'errore imprevisto'}`);
+  if (!(e instanceof A.APIError)) return new GeminiError('sconosciuto', `Claude: ${(e as Error)?.message || 'errore imprevisto'}`);
+
+  const r = reason(e);
+  const type = errorType(e);
+  const status = e.status;
+  if (status === 402 || type === 'billing_error' || /credit balance|billing|purchase credits|insufficient (funds|credit)/i.test(r)) {
+    return new GeminiError('quota', `Claude: credito esaurito o pagamento non attivo («${r}»). Ricarica il credito su console.anthropic.com → Billing.`, status ?? 402, { periodo: 'giorno' });
+  }
+  if (status === 401 || type === 'authentication_error') {
+    return new GeminiError('chiave', `Claude: chiave non valida o revocata («${r}»). Ricopiala da console.anthropic.com → API keys e incollala di nuovo nelle Impostazioni.`, 401);
+  }
+  if (status === 403 || type === 'permission_error') {
+    return new GeminiError('chiave', `Claude: accesso negato («${r}»). Controlla su console.anthropic.com che la chiave sia attiva e che ci sia credito.`, 403);
+  }
+  if (status === 404 || type === 'not_found_error') {
+    return new GeminiError('modello', `Claude: modello non disponibile per questa chiave («${r}»).`, 404);
+  }
+  if (status === 429 || type === 'rate_limit_error') {
+    return /spend|budget|usage limit|monthly/i.test(r)
+      ? new GeminiError('quota', `Claude: raggiunto il limite di spesa impostato su console.anthropic.com («${r}»). Se vuoi, alzalo in Settings → Limits.`, 429, { periodo: 'giorno' })
+      : new GeminiError('quota', `Claude: superato il limite di richieste al minuto del tuo account («${r}»). Riprova tra un minuto: i limiti crescono dopo i primi acquisti di credito.`, 429, { periodo: 'minuto' });
+  }
+  if (status === 529 || type === 'overloaded_error' || (status ?? 0) >= 500) {
+    return new GeminiError('sovraccarico', 'Claude: servizio momentaneamente sovraccarico. Riprova tra poco.', status ?? 529);
+  }
+  if (status === 413 || type === 'request_too_large') {
+    return new GeminiError('sconosciuto', `Claude: richiesta troppo grande («${r}»). Prova con meno foto o una domanda più breve.`, 413);
+  }
+  if (status === 400 || type === 'invalid_request_error') {
+    return new GeminiError('sconosciuto', `Claude: richiesta non valida («${r}»).`, 400);
+  }
+  return new GeminiError('sconosciuto', `Claude: errore${status ? ` ${status}` : ''} («${r}»).`, status);
 }
 
 /** Risposta di Claude in tempo reale (il testo arriva mentre viene scritto). */
